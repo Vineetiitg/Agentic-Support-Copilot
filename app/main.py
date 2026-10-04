@@ -87,6 +87,13 @@ async def ready_endpoint():
         "qdrant": qdrant,
     }
 
+from app.observability.prometheus import collect_all_metrics
+from fastapi import Response
+
+@app.get("/metrics", include_in_schema=False)
+async def metrics_endpoint():
+    return Response(content=collect_all_metrics(), media_type="text/plain; charset=utf-8")
+
 app.include_router(auth.router, tags=["auth"])
 app.include_router(admin.router, tags=["admin"])
 app.include_router(chat.router, tags=["chat"])

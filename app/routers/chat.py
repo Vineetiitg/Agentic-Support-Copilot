@@ -19,6 +19,8 @@ from app.observability.metrics import RequestMetrics, log_request_metrics, timed
 from guardrails import Guard
 from app.services.chat_service import check_cache, prepare_chat_context, save_exchange
 from app.services.feedback_service import store_feedback
+from app.observability.prometheus import REQUEST_COUNT, REQUEST_DURATION, CACHE_HITS, CACHE_MISSES
+import time
 
 router = APIRouter()
 rag_agent = compile_workflow()
@@ -35,15 +37,21 @@ async def chat_endpoint(request: ChatRequest, http_request: Request, user: UserC
         except Exception as e:
             raise CopilotError(str(getattr(e, "message", e)), status_code=400)
 
+    start_time = time.time()
     session_id, chat_history, summary, standalone_query, speculative_docs = await prepare_chat_context(
         user.user_id, request.session_id, request.query, request.chat_history
     )
 
     cached = await check_cache(standalone_query)
     if cached:
+        CACHE_HITS.inc()
+        REQUEST_COUNT.inc({"route": "/chat"})
+        REQUEST_DURATION.observe(time.time() - start_time)
         log_request_metrics(metrics, route="/chat (cache hit)", sources=len(cached.get("sources", [])), model="semantic_cache")
         await save_exchange(user.user_id, session_id, request.query, cached["answer"], cached.get("sources", []), cached.get("confidence", 0.99))
         return ChatResponse(query=request.query, answer=cached["answer"], sources=cached.get("sources", []), confidence=cached.get("confidence", 0.99), session_id=session_id)
+    
+    CACHE_MISSES.inc()
 
     initial_state = {"question": standalone_query, "chat_history": chat_history, "summary": summary, "run_count": 0, "documents": speculative_docs}
     try:
@@ -56,9 +64,13 @@ async def chat_endpoint(request: ChatRequest, http_request: Request, user: UserC
         if answer and sources:
             await save_exchange(user.user_id, session_id, request.query, answer, sources, confidence)
     except Exception as e:
+        REQUEST_COUNT.inc({"route": "/chat", "error": "true"})
+        REQUEST_DURATION.observe(time.time() - start_time)
         raise CopilotError(str(e), status_code=500)
 
     log_request_metrics(metrics, route="/chat", sources=len(sources), model=settings.LLM_MODEL)
+    REQUEST_COUNT.inc({"route": "/chat"})
+    REQUEST_DURATION.observe(time.time() - start_time)
     return ChatResponse(query=request.query, answer=answer, sources=sources, confidence=confidence, session_id=session_id)
 
 @router.post("/chat/feedback")
