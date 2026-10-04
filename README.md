@@ -11,6 +11,7 @@ license: mit
 # Support Docs Copilot
 
 [![Live Demo on HuggingFace](https://img.shields.io/badge/🤗%20Live%20Demo-HuggingFace%20Spaces-blue)](https://huggingface.co/spaces/vineet88/support-docs-copilot)
+[![codecov](https://codecov.io/gh/Vineetiitg/Agentic-Support-Copilot/graph/badge.svg)](https://codecov.io/gh/Vineetiitg/Agentic-Support-Copilot)
 
 A lightweight, production-ready advanced RAG support copilot featuring **multi-tier speculative LLM routing** (DeepSeek / Gemini / OpenRouter), **Qdrant hybrid retrieval**, **Cohere & FlashRank reranking**, **Redis semantic caching & session memory**, **Arq asynchronous background workers**, and a **LangGraph Self-RAG agent** with confidence scoring, query rewriting, input/output guardrails, and RAGAS benchmark evaluation.
 

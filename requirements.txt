@@ -40,3 +40,4 @@ cohere>=7.0.0
 flashrank>=0.2.8
 
 filelock>=3.13.0
+pytest-cov>=5.0.0
