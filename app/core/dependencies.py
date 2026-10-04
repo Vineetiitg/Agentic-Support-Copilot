@@ -43,3 +43,17 @@ def check_qdrant() -> dict[str, Any]:
         }
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
+
+def get_llm(model: str | None = None, temperature: float = 0) -> Any:
+    """Factory for LLM instances. Centralizes LLM creation with proper config."""
+    from langchain_openai import ChatOpenAI
+    import httpx
+    
+    _model = model or settings.LLM_MODEL
+    return ChatOpenAI(
+        model=_model,
+        temperature=temperature,
+        openai_api_key=settings.OPENROUTER_API_KEY,
+        openai_api_base=settings.OPENROUTER_BASE_URL,
+        default_headers={"HTTP-Referer": "https://localhost:3000", "X-Title": "Support Docs Copilot"},
+    )
