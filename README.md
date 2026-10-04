@@ -13,9 +13,25 @@ license: mit
 [![Live Demo on HuggingFace](https://img.shields.io/badge/🤗%20Live%20Demo-HuggingFace%20Spaces-blue)](https://huggingface.co/spaces/vineet88/support-docs-copilot)
 [![codecov](https://codecov.io/gh/Vineetiitg/Agentic-Support-Copilot/graph/badge.svg)](https://codecov.io/gh/Vineetiitg/Agentic-Support-Copilot)
 
-A lightweight, production-ready advanced RAG support copilot featuring **multi-tier speculative LLM routing** (DeepSeek / Gemini / OpenRouter), **Qdrant hybrid retrieval**, **Cohere & FlashRank reranking**, **Redis semantic caching & session memory**, **Arq asynchronous background workers**, and a **LangGraph Self-RAG agent** with confidence scoring, query rewriting, input/output guardrails, and RAGAS benchmark evaluation.
+A lightweight, production-ready advanced RAG support copilot featuring **speculative retrieval with similarity-based routing** (DeepSeek / Gemini / OpenRouter), **Qdrant hybrid retrieval**, **Cohere & FlashRank reranking**, **Redis semantic caching & session memory**, **Arq asynchronous background workers**, and a **LangGraph Self-RAG agent** with confidence scoring, query rewriting, input/output guardrails, and RAGAS benchmark evaluation.
 
 ---
+
+## 📂 Project Structure
+
+```
+app/
+├── routers/          # API route handlers (chat, admin, auth, sessions)
+├── services/         # Business logic layer (chat, feedback)
+├── engine/           # RAG pipeline (retrieval, reranking, caching, memory)
+├── graph/            # LangGraph agentic workflow
+├── guardrails/       # Input validation and output safety
+├── auth/             # JWT auth with SQLite user store
+├── core/             # Config, logging, LLM factory, dependencies
+└── observability/    # Prometheus metrics and monitoring
+tests/                # Unit, integration, and evaluation tests
+ui/                   # Streamlit frontend with component architecture
+```
 
 ## 🧩 Tech Stack
 
@@ -119,16 +135,16 @@ stateDiagram-v2
 
 ## 🌟 Core Architectural Highlights
 
-1. **Multi-Tier Speculative LLM Routing:**
+1. **Speculative Retrieval with Similarity-Based Routing:**
    - Routes requests dynamically across specialized models: fast path (`google/gemini-2.0-flash-lite-preview-02-05`), default reasoning (`deepseek/deepseek-v4-flash`), and complex problem solving (`deepseek/deepseek-r1`) via OpenRouter / AICredits.
 2. **Redis Pre-Warmed Vector Cache & Session Memory:**
-   - Features semantic caching that returns instant answers for common FAQs (**97% latency reduction**, dropping turnaround from ~1,850ms to ~15–60ms).
+   - Features semantic caching that returns instant answers for common FAQs (**Sub-second cached responses via semantic similarity matching**, dropping turnaround from ~1,850ms to ~15–60ms).
    - Manages multi-turn conversation memory with coreference resolution for natural dialogue flow.
 3. **Cohere & FlashRank Hybrid Reranking:**
    - Combines dense (`BAAI/bge-small-en-v1.5`) and sparse (`Qdrant/bm25`) embeddings with automatic reranking via **Cohere ClientV2** or local CPU-only **FlashRank**.
-   - Replaces slow LLM relevance grading, reducing time-to-first-token (TTFT) by up to **80%**.
+   - Replaces slow LLM relevance grading.
 4. **Speculative Dual-Path Retrieval:**
-   - Uses `asyncio.gather()` to execute multi-turn query condensation concurrently with raw vector search, reducing follow-up query latency by **58%**.
+   - Uses `asyncio.gather()` to execute multi-turn query condensation concurrently with raw vector search.
 5. **Arq Asynchronous Background Workers:**
    - Heavy tasks such as document ingestion, chunking, and vector indexing are offloaded to Redis-backed **Arq workers**, keeping the API non-blocking and highly responsive.
 6. **Answer Confidence Scoring:**
@@ -144,6 +160,26 @@ This project is engineered to remove heavy GPU, PyTorch, and Ollama dependencies
 - **Free Tier Deployment Ready:** Small Docker image footprint (`~60% smaller`), easily deployable on hosting tiers like HuggingFace Spaces, Render, Railway, or Fly.io.
 
 ---
+
+## ⚡ Quick Start
+
+1. Clone and install:
+   ```bash
+   git clone https://github.com/Vineetiitg/Agentic-Support-Copilot.git
+   cd Agentic-Support-Copilot
+   python -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+2. Setup environment:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your keys
+   ```
+3. Run with Docker Compose:
+   ```bash
+   docker compose up -d
+   ```
 
 ## 🚀 How to Run the Project
 
