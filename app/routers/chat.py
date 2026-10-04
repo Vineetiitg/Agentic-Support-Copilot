@@ -1,5 +1,4 @@
 import asyncio
-import uuid
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
@@ -9,10 +8,8 @@ from app.core.config import settings
 from app.core.errors import CopilotError
 from app.core.logging import logger
 from app.core.queue import get_redis_client
-from app.engine.memory import add_session_message, get_session_history, get_session_summary
-from app.engine.query_transform import condense_query
-from app.engine.retriever import retrieve_documents
-from app.engine.semantic_cache import get_cached_answer, set_cached_answer
+from app.engine.memory import add_session_message
+from app.engine.semantic_cache import set_cached_answer
 from app.graph.workflow import compile_workflow
 from app.guardrails.input import async_enforce_rate_limit, validate_query
 from app.guardrails.output import redact_sensitive_data
@@ -20,30 +17,11 @@ from app.guardrails.validators import DetectPromptInjection
 from app.models.schemas import ChatRequest, ChatResponse, FeedbackRequest
 from app.observability.metrics import RequestMetrics, log_request_metrics, timed_stage
 from guardrails import Guard
+from app.services.chat_service import check_cache, prepare_chat_context, save_exchange
 
 router = APIRouter()
 rag_agent = compile_workflow()
 input_guard = Guard().use(DetectPromptInjection, on_fail="exception")
-
-async def resolve_query_speculative(query: str, chat_history: list, summary: str):
-    speculative_docs = []
-    if chat_history:
-        condense_task = asyncio.create_task(condense_query(query, chat_history, summary=summary))
-        retrieval_task = asyncio.create_task(retrieve_documents(query, chat_history))
-        results = await asyncio.gather(condense_task, retrieval_task, return_exceptions=True)
-        
-        standalone_query = query if isinstance(results[0], Exception) else results[0]
-        raw_docs = [] if isinstance(results[1], Exception) else results[1]
-        
-        if raw_docs:
-            top_sim = max([d.metadata.get("similarity_score", 0.0) for d in raw_docs] + [0.0])
-            if top_sim >= 0.85:
-                logger.info(f"SPECULATIVE RETRIEVAL HIT: Raw query '{query}' matched with top similarity {top_sim:.4f} >= 0.85!")
-                speculative_docs = raw_docs
-    else:
-        standalone_query = await condense_query(query, chat_history, summary=summary)
-        
-    return standalone_query, speculative_docs
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, http_request: Request, user: UserContext = Depends(resolve_user)):
@@ -56,19 +34,14 @@ async def chat_endpoint(request: ChatRequest, http_request: Request, user: UserC
         except Exception as e:
             raise CopilotError(str(getattr(e, "message", e)), status_code=400)
 
-    session_id = request.session_id or str(uuid.uuid4())
-    chat_history = request.chat_history
-    if not chat_history:
-        chat_history = await get_session_history(user.user_id, session_id, limit=6)
-    summary = await get_session_summary(user.user_id, session_id)
+    session_id, chat_history, summary, standalone_query, speculative_docs = await prepare_chat_context(
+        user.user_id, request.session_id, request.query, request.chat_history
+    )
 
-    standalone_query, speculative_docs = await resolve_query_speculative(request.query, chat_history, summary=summary)
-
-    cached = await get_cached_answer(standalone_query)
+    cached = await check_cache(standalone_query)
     if cached:
         log_request_metrics(metrics, route="/chat (cache hit)", sources=len(cached.get("sources", [])), model="semantic_cache")
-        await add_session_message(user.user_id, session_id, "user", request.query)
-        await add_session_message(user.user_id, session_id, "assistant", cached["answer"], cached.get("sources", []), cached.get("confidence", 0.99))
+        await save_exchange(user.user_id, session_id, request.query, cached["answer"], cached.get("sources", []), cached.get("confidence", 0.99))
         return ChatResponse(query=request.query, answer=cached["answer"], sources=cached.get("sources", []), confidence=cached.get("confidence", 0.99), session_id=session_id)
 
     initial_state = {"question": standalone_query, "chat_history": chat_history, "summary": summary, "run_count": 0, "documents": speculative_docs}
@@ -80,9 +53,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request, user: UserC
         confidence = final_state.get("confidence_score", 0.0)
         
         if answer and sources:
-            await set_cached_answer(standalone_query, answer, sources, confidence)
-            await add_session_message(user.user_id, session_id, "user", request.query)
-            await add_session_message(user.user_id, session_id, "assistant", answer, sources, confidence)
+            await save_exchange(user.user_id, session_id, request.query, answer, sources, confidence)
     except Exception as e:
         raise CopilotError(str(e), status_code=500)
 
@@ -104,22 +75,17 @@ async def chat_stream_endpoint(request: ChatRequest, http_request: Request, user
         except Exception as e:
             raise CopilotError(str(getattr(e, "message", e)), status_code=400)
 
-    session_id = request.session_id or str(uuid.uuid4())
-    chat_history = request.chat_history
-    if not chat_history:
-        chat_history = await get_session_history(user.user_id, session_id, limit=6)
-    summary = await get_session_summary(user.user_id, session_id)
-
-    standalone_query, speculative_docs = await resolve_query_speculative(request.query, chat_history, summary=summary)
+    session_id, chat_history, summary, standalone_query, speculative_docs = await prepare_chat_context(
+        user.user_id, request.session_id, request.query, request.chat_history
+    )
 
     async def token_generator():
         try:
             metrics = RequestMetrics()
-            cached = await get_cached_answer(standalone_query)
+            cached = await check_cache(standalone_query)
             if cached:
                 log_request_metrics(metrics, route="/chat/stream (cache hit)", sources=len(cached.get("sources", [])), model="semantic_cache")
-                await add_session_message(user.user_id, session_id, "user", request.query)
-                await add_session_message(user.user_id, session_id, "assistant", cached["answer"], cached.get("sources", []), cached.get("confidence", 0.99))
+                await save_exchange(user.user_id, session_id, request.query, cached["answer"], cached.get("sources", []), cached.get("confidence", 0.99))
                 yield cached["answer"]
                 return
 
@@ -174,8 +140,7 @@ async def chat_stream_endpoint(request: ChatRequest, http_request: Request, user
             if has_streamed_tokens and documents and str(grounded_result).lower() != "no":
                 redacted_text = redact_sensitive_data(streamed_text)
                 await set_cached_answer(standalone_query, redacted_text, documents, 0.98)
-                await add_session_message(user.user_id, session_id, "user", request.query)
-                await add_session_message(user.user_id, session_id, "assistant", redacted_text, documents, 0.98)
+                await save_exchange(user.user_id, session_id, request.query, redacted_text, documents, 0.98)
                 
             log_request_metrics(metrics, route="/chat/stream", sources=len(documents), model=settings.LLM_MODEL)
         except Exception as exc:
