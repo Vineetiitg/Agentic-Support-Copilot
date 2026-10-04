@@ -31,3 +31,4 @@ brain/
 .DS_Store
 *.lock
 
+data/users.db
