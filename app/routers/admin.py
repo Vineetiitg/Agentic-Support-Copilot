@@ -90,3 +90,10 @@ async def get_task_status_endpoint(job_id: str, user: UserContext = Depends(reso
         }
     except Exception as e:
         return {"job_id": job_id, "status": "error", "error": str(e)}
+
+@router.get("/admin/feedback")
+async def admin_feedback_analytics(user: UserContext = Depends(resolve_user)):
+    require_admin(user)
+    from app.services.feedback_service import get_feedback_analytics
+    analytics = await get_feedback_analytics()
+    return {"status": "ok", **analytics}

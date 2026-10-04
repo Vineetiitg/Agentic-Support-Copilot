@@ -18,6 +18,7 @@ from app.models.schemas import ChatRequest, ChatResponse, FeedbackRequest
 from app.observability.metrics import RequestMetrics, log_request_metrics, timed_stage
 from guardrails import Guard
 from app.services.chat_service import check_cache, prepare_chat_context, save_exchange
+from app.services.feedback_service import store_feedback
 
 router = APIRouter()
 rag_agent = compile_workflow()
@@ -62,8 +63,8 @@ async def chat_endpoint(request: ChatRequest, http_request: Request, user: UserC
 
 @router.post("/chat/feedback")
 async def chat_feedback_endpoint(request: FeedbackRequest, user: UserContext = Depends(resolve_user)):
-    logger.info("Feedback received", extra={"feedback": request.dict(), "user": user.user_id})
-    return {"status": "ok", "message": "Feedback recorded."}
+    feedback_id = await store_feedback(user.user_id, request.query, request.answer, request.is_positive, request.comments)
+    return {"status": "ok", "message": "Feedback recorded.", "feedback_id": feedback_id}
 
 @router.post("/chat/stream")
 async def chat_stream_endpoint(request: ChatRequest, http_request: Request, user: UserContext = Depends(resolve_user_optional)):
