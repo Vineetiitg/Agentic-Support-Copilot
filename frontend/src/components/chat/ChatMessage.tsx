@@ -4,6 +4,7 @@ import { User, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ChatMessage as ChatMessageType } from '@/types/chat'
 import TypingIndicator from './TypingIndicator'
+import FeedbackButtons from './FeedbackButtons'
 
 interface Props {
   message: ChatMessageType
@@ -47,6 +48,12 @@ export default function ChatMessage({ message }: Props) {
             )}>
               Confidence: {(message.confidence * 100).toFixed(0)}%
             </span>
+          </div>
+        )}
+
+        {!isUser && !message.isStreaming && message.content && (
+          <div className="mt-2 flex items-center gap-3">
+            <FeedbackButtons query="" answer={message.content} />
           </div>
         )}
       </div>
