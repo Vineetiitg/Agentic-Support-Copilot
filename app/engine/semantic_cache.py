@@ -17,10 +17,21 @@ def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
         return 0.0
     return dot_product / (norm_a * norm_b)
 
+async def _scan_cache_keys(redis, pattern="semantic_cache:*", count=100):
+    """Use SCAN cursor instead of KEYS to avoid blocking Redis."""
+    keys = []
+    cursor = 0
+    while True:
+        cursor, batch = await redis.scan(cursor=cursor, match=pattern, count=50)
+        keys.extend(batch)
+        if cursor == 0 or len(keys) >= count:
+            break
+    return keys[:count]
+
 async def get_cached_answer(query: str, similarity_threshold: float = 0.92) -> Optional[Dict[str, Any]]:
     try:
         redis = await get_redis_client()
-        keys = await redis.keys("semantic_cache:*")
+        keys = await _scan_cache_keys(redis)
         if not keys:
             return None
             
@@ -108,5 +119,19 @@ async def set_cached_answer(query: str, answer: str, sources: List[Any], confide
         }
         await redis.setex(key, ttl_seconds, json.dumps(payload))
         logger.info(f"Cached semantic answer for query: '{query}'")
+        
+        # LRU eviction: keep cache size bounded
+        all_keys = await _scan_cache_keys(redis, count=600)
+        if len(all_keys) > 500:
+            # Remove oldest entries by checking TTL (lower TTL = older)
+            ttls = []
+            for k in all_keys:
+                ttl = await redis.ttl(k)
+                ttls.append((k, ttl))
+            ttls.sort(key=lambda x: x[1])  # lowest TTL first (oldest)
+            to_remove = ttls[:len(all_keys) - 500]
+            if to_remove:
+                await redis.delete(*[k for k, _ in to_remove])
+                logger.info(f'LRU eviction: removed {len(to_remove)} oldest cache entries')
     except Exception as e:
         logger.warning(f"Failed to set semantic cache ({e})")
