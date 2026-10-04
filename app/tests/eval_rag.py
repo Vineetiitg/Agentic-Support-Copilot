@@ -90,6 +90,13 @@ async def run_local_evaluation(
     faithfulness.llm = slow_llm
     answer_correctness.llm = slow_llm
 
+    # Assign embeddings to metrics that need them
+    embeddings = dense_embeddings()
+    answer_relevancy.embeddings = embeddings
+    context_precision.embeddings = embeddings
+    context_recall.embeddings = embeddings
+    answer_correctness.embeddings = embeddings
+
     ragas_dataset = Dataset.from_dict({
         "question": questions,
         "answer": answers,
@@ -97,14 +104,10 @@ async def run_local_evaluation(
         "ground_truth": ground_truths,
     })
     
-    # Use global singleton ONNX embedder (eliminates 2.5s reload)
-    embeddings = dense_embeddings()
     try:
         ragas_result = evaluate(
             ragas_dataset,
             metrics=[answer_relevancy, faithfulness, context_precision, context_recall, answer_correctness],
-            llm=fast_llm,
-            embeddings=embeddings,
             run_config=RunConfig(max_workers=4, max_wait=60, max_retries=2),
         )
         ragas_scores = ragas_result
