@@ -10,8 +10,10 @@ def render_chat(api_base: str, headers: dict, session_id: str):
                 try:
                     requests.post(f"{api_base}/api/v1/sessions/{sid}/terminate", json={}, headers=headers, timeout=10)
                     st.toast("🛑 Sent termination signal to active generation!")
-                except Exception:
-                    pass
+                except requests.RequestException as e:
+                st.error(f"⚠️ Connection error: {e}")
+            except Exception as e:
+                st.error(f"An unexpected error occurred: {str(e)}")
     with col_info:
         st.caption("💡 Tip: Click **🛑 Stop Generation** anytime during text output to immediately terminate an ongoing chat response.")
 
@@ -46,8 +48,9 @@ def render_chat(api_base: str, headers: dict, session_id: str):
 
         with st.chat_message("assistant"):
             try:
-                response = requests.post(
-                    f"{api_base}/chat/stream",
+                with st.spinner("Processing..."):
+                    response = requests.post(
+                        f"{api_base}/chat/stream",
                     json={"query": user_query, "chat_history": st.session_state.messages[:-1], "session_id": session_id},
                     headers=headers,
                     stream=True,
@@ -78,8 +81,10 @@ def render_chat(api_base: str, headers: dict, session_id: str):
                         res_msgs = requests.get(f"{api_base}/api/v1/sessions/{session_id}/messages", headers=headers, timeout=10).json()
                         if res_msgs and (msgs := res_msgs.get("messages")) and len(msgs) >= len(st.session_state.messages):
                             st.session_state.messages = msgs
-                    except Exception:
-                        pass
+                    except requests.RequestException as e:
+                st.error(f"⚠️ Connection error: {e}")
+            except Exception as e:
+                st.error(f"An unexpected error occurred: {str(e)}")
                 st.rerun()
             except requests.RequestException as exc:
                 st.error(f"Chat request failed: {exc}")

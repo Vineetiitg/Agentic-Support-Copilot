@@ -1,3 +1,10 @@
+
+def check_backend_health(api_base: str) -> bool:
+    try:
+        r = requests.get(f"{api_base}/health", timeout=3)
+        return r.status_code == 200
+    except Exception:
+        return False
 import streamlit as st
 import requests
 import uuid

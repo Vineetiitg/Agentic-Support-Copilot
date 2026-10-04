@@ -11,7 +11,8 @@ def get_json(api_base, path, headers):
     return r.json()
 
 def post_json(api_base, path, headers, payload=None):
-    r = requests.post(f"{api_base}{path}", headers=headers, json=payload or {}, timeout=300)
+    with st.spinner("Processing..."):
+        r = requests.post(f"{api_base}{path}", headers=headers, json=payload or {}, timeout=300)
     r.raise_for_status()
     return r.json()
 
@@ -34,8 +35,10 @@ def poll_job_status(api_base, headers, job_id: str, status_text: str = "Processi
                     status_placeholder.markdown(f"Status: **{job_status}** ❌")
                     status.update(label=f"Job Finished ({job_status})", state="complete" if job_status == "complete" else "error", expanded=True)
                     return res.get("result")
-            except Exception:
-                pass
+            except requests.RequestException as e:
+                st.error(f"⚠️ Connection error: {e}")
+            except Exception as e:
+                st.error(f"An unexpected error occurred: {str(e)}")
             time.sleep(1.5)
         status.update(label="Job Timed Out / Still Running", state="error")
     return None
@@ -74,6 +77,7 @@ def render_documents_tab(api_base: str, headers: dict):
                         with col_del:
                             if st.button("🗑️ Delete File & Embeddings", key=f"del_{doc.get('doc_id')}", use_container_width=True):
                                 try:
+                                    with st.spinner("Processing..."):
                                     requests.delete(f"{api_base}/admin/documents/{doc.get('doc_id')}", headers=headers, timeout=10)
                                     st.success(f"🗑️ Deleted file '{doc.get('source')}' from disk and removed its embeddings from Qdrant!")
                                     st.rerun()
@@ -153,7 +157,8 @@ def render_admin_portal_tab(api_base: str, headers: dict):
                 with col_btn:
                     if st.button("🗑️ Delete (1-Click)", key=f"adm_del_{doc.get('doc_id')}", use_container_width=True):
                         try:
-                            requests.delete(f"{api_base}/admin/documents/{doc.get('doc_id')}", headers=headers, timeout=10)
+                            with st.spinner("Processing..."):
+                                    requests.delete(f"{api_base}/admin/documents/{doc.get('doc_id')}", headers=headers, timeout=10)
                             st.success(f"🗑️ Deleted file '{doc.get('source')}' and removed its embeddings!")
                             st.rerun()
                         except Exception as exc:
@@ -164,8 +169,10 @@ def render_admin_portal_tab(api_base: str, headers: dict):
                     for d in selected_to_delete:
                         try:
                             requests.delete(f"{api_base}/admin/documents/{d.get('doc_id')}", headers=headers, timeout=10)
-                        except Exception:
-                            pass
+                        except requests.RequestException as e:
+                st.error(f"⚠️ Connection error: {e}")
+            except Exception as e:
+                st.error(f"An unexpected error occurred: {str(e)}")
                     st.success(f"🗑️ Successfully deleted {len(selected_to_delete)} file(s) and removed their embeddings!")
                     st.rerun()
     except Exception as exc:
