@@ -15,10 +15,29 @@ from app.models.schemas import InterveneRequest
 
 router = APIRouter()
 
+from fastapi import Query
+
 @router.get("/api/v1/sessions")
-async def get_user_sessions_endpoint(user: UserContext = Depends(resolve_user)):
-    sessions = await list_user_sessions(user.user_id)
-    return {"sessions": sessions}
+async def get_user_sessions_endpoint(
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    user: UserContext = Depends(resolve_user),
+):
+    all_sessions = await list_user_sessions(user.user_id)
+    total = len(all_sessions)
+    start = (page - 1) * per_page
+    end = start + per_page
+    return {
+        "sessions": all_sessions[start:end],
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "total_pages": (total + per_page - 1) // per_page,
+            "has_next": end < total,
+            "has_previous": page > 1,
+        },
+    }
 
 @router.get("/api/v1/sessions/{session_id}/messages")
 async def get_session_messages_endpoint(session_id: str, user: UserContext = Depends(resolve_user)):
@@ -37,11 +56,29 @@ async def delete_session_endpoint(session_id: str, user: UserContext = Depends(r
     return {"status": "ok" if success else "error", "session_id": session_id}
 
 @router.get("/api/v1/admin/sessions")
-async def admin_list_sessions_endpoint(user: UserContext = Depends(resolve_user)):
+async def admin_list_sessions_endpoint(
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    user: UserContext = Depends(resolve_user)
+):
     if user.role != "admin":
         raise CopilotError("Admin privileges required", status_code=403)
-    sessions = await list_all_sessions(limit=50)
-    return {"sessions": sessions}
+    # We might pass a large limit to list_all_sessions since it's just keys, or maybe we assume it returns all if large enough
+    all_sessions = await list_all_sessions(limit=10000)
+    total = len(all_sessions)
+    start = (page - 1) * per_page
+    end = start + per_page
+    return {
+        "sessions": all_sessions[start:end],
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "total_pages": (total + per_page - 1) // per_page,
+            "has_next": end < total,
+            "has_previous": page > 1,
+        },
+    }
 
 @router.get("/api/v1/admin/sessions/{user_id}/{session_id}/messages")
 async def admin_get_session_messages_endpoint(user_id: str, session_id: str, user: UserContext = Depends(resolve_user)):
