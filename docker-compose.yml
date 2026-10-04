@@ -5,10 +5,29 @@ services:
       - "6333:6333"
     volumes:
       - qdrant_storage:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:6333/readyz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_storage:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     restart: always
 
   backend:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile.backend
     ports:
@@ -25,21 +44,16 @@ services:
       - QDRANT_URL=http://qdrant:6333
       - REDIS_URL=redis://redis:6379/0
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - CORS_ORIGINS=["http://localhost:3000","http://localhost:8501","http://localhost:5173"]
     depends_on:
-      - qdrant
-      - redis
-    restart: always
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_storage:/data
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: always
 
   worker:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile.backend
     command: arq app.worker.WorkerSettings
@@ -56,11 +70,25 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
     depends_on:
-      - qdrant
-      - redis
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: always
 
-  frontend:
+  # React Frontend (primary UI)
+  react-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: always
+
+  # Streamlit Frontend (legacy/lightweight UI)
+  streamlit:
     build:
       context: .
       dockerfile: Dockerfile.frontend
