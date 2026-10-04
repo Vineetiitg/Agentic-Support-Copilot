@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
 from app.auth.models import UserContext
-from app.auth.security import resolve_user
+from app.auth.security import resolve_user_optional, resolve_user
 from app.core.config import settings
 from app.core.errors import CopilotError
 from app.core.logging import logger
@@ -24,7 +24,7 @@ rag_agent = compile_workflow()
 input_guard = Guard().use(DetectPromptInjection, on_fail="exception")
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest, http_request: Request, user: UserContext = Depends(resolve_user)):
+async def chat_endpoint(request: ChatRequest, http_request: Request, user: UserContext = Depends(resolve_user_optional)):
     metrics = RequestMetrics()
     await async_enforce_rate_limit(http_request.client.host if http_request.client else user.user_id)
     validate_query(request.query)
@@ -66,7 +66,7 @@ async def chat_feedback_endpoint(request: FeedbackRequest, user: UserContext = D
     return {"status": "ok", "message": "Feedback recorded."}
 
 @router.post("/chat/stream")
-async def chat_stream_endpoint(request: ChatRequest, http_request: Request, user: UserContext = Depends(resolve_user)):
+async def chat_stream_endpoint(request: ChatRequest, http_request: Request, user: UserContext = Depends(resolve_user_optional)):
     await async_enforce_rate_limit(http_request.client.host if http_request.client else user.user_id)
     validate_query(request.query)
     if settings.ENABLE_GUARDRAILS:

@@ -30,20 +30,39 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
 
 
 def resolve_user(token: str | None = Depends(oauth2_scheme)) -> UserContext:
+    """Resolve user from JWT. Returns guest only when auth is disabled."""
     if not settings.AUTH_ENABLED:
         return UserContext(role="admin", user_id="local-dev")
     if not token:
-        return UserContext(role="guest", user_id="guest")
-    
+        raise CopilotError("Authentication required. Please provide a valid token.", status_code=401)
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         username: str | None = payload.get("sub")
         role: str | None = payload.get("role")
         if username is None or role is None:
-            return UserContext(role="guest", user_id="guest")
+            raise CopilotError("Invalid token payload.", status_code=401)
         return UserContext(role=role, user_id=username)
+    except jwt.ExpiredSignatureError:
+        raise CopilotError("Token has expired. Please log in again.", status_code=401)
     except jwt.PyJWTError:
+        raise CopilotError("Invalid authentication token.", status_code=401)
+
+
+def resolve_user_optional(token: str | None = Depends(oauth2_scheme)) -> UserContext:
+    """Resolve user from JWT. Returns guest if no token provided (for public endpoints)."""
+    if not settings.AUTH_ENABLED:
+        return UserContext(role="admin", user_id="local-dev")
+    if not token:
         return UserContext(role="guest", user_id="guest")
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        username = payload.get("sub")
+        role = payload.get("role")
+        if username and role:
+            return UserContext(role=role, user_id=username)
+    except jwt.PyJWTError:
+        pass
+    return UserContext(role="guest", user_id="guest")
 
 
 def require_admin(user: UserContext = Depends(resolve_user)) -> None:
