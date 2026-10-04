@@ -15,7 +15,10 @@ def get_qdrant_client() -> QdrantClient:
     with _client_lock:
         if _qdrant_client is None:
             if settings.QDRANT_URL:
-                _qdrant_client = QdrantClient(url=settings.QDRANT_URL)
+                _qdrant_client = QdrantClient(
+                    url=settings.QDRANT_URL,
+                    api_key=settings.QDRANT_API_KEY or None,
+                )
             else:
                 _qdrant_client = QdrantClient(path=settings.QDRANT_LOCATION)
         return _qdrant_client
