@@ -38,3 +38,5 @@ data/*.lock
 *.pyc
 __pycache__/
 .env
+
+frontend/node_modules
