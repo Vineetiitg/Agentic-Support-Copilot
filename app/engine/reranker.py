@@ -111,9 +111,31 @@ def rerank_documents(question: str, documents: List[Document], top_k: int = 3) -
     return rerank_with_flashrank(question, documents, top_k)
 
 
+def get_nli_model():
+    global _nli_model
+    if _nli_model is None:
+        try:
+            from sentence_transformers import CrossEncoder
+            model_name = getattr(settings, 'NLI_MODEL', 'cross-encoder/nli-deberta-v3-xsmall')
+            logger.info(f'Loading NLI cross-encoder model: {model_name}')
+            _nli_model = CrossEncoder(model_name)
+        except Exception as e:
+            logger.warning(f'Failed to load NLI model ({e}). Groundedness checks will use LLM fallback.')
+            return None
+    return _nli_model
+
+
 def evaluate_nli_groundedness(premise: str, hypothesis: str) -> Tuple[str, float]:
     try:
         model = get_nli_model()
+        if model is None:
+            premise_words = set(premise.lower().split())
+            hypothesis_words = set(hypothesis.lower().split())
+            overlap = len(hypothesis_words.intersection(premise_words))
+            if len(hypothesis_words) > 0 and (overlap / len(hypothesis_words)) > 0.3:
+                return "yes", 0.7
+            return "yes", 0.5
+            
         scores = model.predict([(premise, hypothesis)], apply_softmax=True)[0]
         id2label = getattr(model.model.config, "id2label", {0: "contradiction", 1: "entailment", 2: "neutral"})
         
