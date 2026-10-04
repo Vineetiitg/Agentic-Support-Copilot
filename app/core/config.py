@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     ENABLE_RAG_EVAL: bool = False
     MAX_QUERY_LENGTH: int = 2000
     RATE_LIMIT_PER_MINUTE: int = 30
+    RATE_LIMIT_RPM: int = 30
 
     # Auth Config
     AUTH_ENABLED: bool = False

@@ -1,13 +1,16 @@
 import re
 import time
+import warnings
 from collections import defaultdict, deque
 
+from app.core.queue import get_redis_client
 from app.core.config import settings
 from app.core.errors import CopilotError
 
+RATE_LIMIT_WINDOW = 60  # seconds
+RATE_LIMIT_MAX = getattr(settings, 'RATE_LIMIT_RPM', 30)  # requests per minute
 
 _requests_by_client: dict[str, deque[float]] = defaultdict(deque)
-
 
 PROMPT_INJECTION_PATTERNS = [
     "ignore previous",
@@ -36,6 +39,7 @@ def validate_query(query: str) -> None:
 
 
 def enforce_rate_limit(client_id: str) -> None:
+    warnings.warn("enforce_rate_limit is deprecated, use async_enforce_rate_limit instead", DeprecationWarning)
     if settings.RATE_LIMIT_PER_MINUTE <= 0:
         return
     now = time.time()
@@ -48,22 +52,32 @@ def enforce_rate_limit(client_id: str) -> None:
 
 
 async def async_enforce_rate_limit(client_id: str) -> None:
-    if settings.RATE_LIMIT_PER_MINUTE <= 0:
-        return
+    """Redis-based sliding window rate limiter. Works across multiple workers."""
     try:
-        from app.core.queue import get_redis_client
         redis = await get_redis_client()
         key = f"rate_limit:{client_id}"
-        current = await redis.incr(key)
-        if current == 1:
-            await redis.expire(key, 60)
-        if current > settings.RATE_LIMIT_PER_MINUTE:
-            raise CopilotError("Rate limit exceeded.", status_code=429)
+        now = time.time()
+        window_start = now - RATE_LIMIT_WINDOW
+
+        pipe = redis.pipeline()
+        pipe.zremrangebyscore(key, 0, window_start)  # Remove expired entries
+        pipe.zadd(key, {str(now): now})  # Add current request
+        pipe.zcard(key)  # Count requests in window
+        pipe.expire(key, RATE_LIMIT_WINDOW + 1)  # Set TTL
+        results = await pipe.execute()
+
+        request_count = results[2]
+        if request_count > RATE_LIMIT_MAX:
+            raise CopilotError(
+                f"Rate limit exceeded: {request_count}/{RATE_LIMIT_MAX} requests per minute. Please try again later.",
+                status_code=429,
+            )
     except CopilotError:
         raise
-    except Exception:
-        enforce_rate_limit(client_id)
-
+    except Exception as e:
+        # If Redis is down, allow the request but log warning
+        import logging
+        logging.getLogger(__name__).warning(f"Rate limit check failed ({e}), allowing request.")
 
 
 def contains_pii(text: str) -> bool:
