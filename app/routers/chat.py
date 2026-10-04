@@ -26,7 +26,7 @@ router = APIRouter()
 rag_agent = compile_workflow()
 input_guard = Guard().use(DetectPromptInjection, on_fail="exception")
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post("/chat", response_model=ChatResponse, summary="Send a support query", description="Submit a question to the RAG-powered support copilot. Returns a grounded answer with source citations.")
 async def chat_endpoint(request: ChatRequest, http_request: Request, user: UserContext = Depends(resolve_user_optional)):
     metrics = RequestMetrics()
     await async_enforce_rate_limit(http_request.client.host if http_request.client else user.user_id)
@@ -78,7 +78,7 @@ async def chat_feedback_endpoint(request: FeedbackRequest, user: UserContext = D
     feedback_id = await store_feedback(user.user_id, request.query, request.answer, request.is_positive, request.comments)
     return {"status": "ok", "message": "Feedback recorded.", "feedback_id": feedback_id}
 
-@router.post("/chat/stream")
+@router.post("/chat/stream", summary="Stream a support query response", description="Submit a question to the RAG-powered support copilot and stream the answer tokens back via Server-Sent Events (SSE).")
 async def chat_stream_endpoint(request: ChatRequest, http_request: Request, user: UserContext = Depends(resolve_user_optional)):
     await async_enforce_rate_limit(http_request.client.host if http_request.client else user.user_id)
     validate_query(request.query)
