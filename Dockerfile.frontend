@@ -1,18 +1,11 @@
 FROM python:3.11-slim
+
 WORKDIR /app
 
-RUN groupadd -r appuser && useradd -r -g appuser -s /sbin/nologin appuser
+RUN --mount=type=cache,target=/root/.cache/pip pip install --default-timeout=1000 streamlit requests
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir streamlit requests httpx
-
-COPY ui/ ./ui/
-
-RUN chown -R appuser:appuser /app
-USER appuser
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')" || exit 1
+COPY ./ui /app/ui
 
 EXPOSE 8501
+
 CMD ["streamlit", "run", "ui/app.py", "--server.port=8501", "--server.address=0.0.0.0"]

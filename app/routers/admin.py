@@ -12,29 +12,9 @@ from app.models.schemas import IngestionRequest
 
 router = APIRouter()
 
-from fastapi import Query
 @router.get("/documents")
-async def documents_endpoint(
-    page: int = Query(1, ge=1, description="Page number"),
-    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
-    user: UserContext = Depends(resolve_user)
-):
-    all_docs = list(load_registry().values())
-    total = len(all_docs)
-    start = (page - 1) * per_page
-    end = start + per_page
-    return {
-        "documents": all_docs[start:end],
-        "role": user.role,
-        "pagination": {
-            "page": page,
-            "per_page": per_page,
-            "total": total,
-            "total_pages": (total + per_page - 1) // per_page,
-            "has_next": end < total,
-            "has_previous": page > 1,
-        },
-    }
+async def documents_endpoint(user: UserContext = Depends(resolve_user)):
+    return {"documents": list(load_registry().values()), "role": user.role}
 
 @router.post("/admin/ingest")
 async def admin_ingest_endpoint(request: IngestionRequest, user: UserContext = Depends(resolve_user)):
@@ -110,10 +90,3 @@ async def get_task_status_endpoint(job_id: str, user: UserContext = Depends(reso
         }
     except Exception as e:
         return {"job_id": job_id, "status": "error", "error": str(e)}
-
-@router.get("/admin/feedback")
-async def admin_feedback_analytics(user: UserContext = Depends(resolve_user)):
-    require_admin(user)
-    from app.services.feedback_service import get_feedback_analytics
-    analytics = await get_feedback_analytics()
-    return {"status": "ok", **analytics}

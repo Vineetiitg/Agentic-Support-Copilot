@@ -15,14 +15,12 @@ class Settings(BaseSettings):
     
     # Qdrant Vector DB Config
     QDRANT_URL: str = ""
-    QDRANT_API_KEY: str = ""
     QDRANT_LOCATION: str = "./qdrant_data"
     COLLECTION_NAME: str = "support_docs"
     DATA_DIR: str = "data/docs"
     
     # Redis & Queue Config
     REDIS_URL: str = "redis://redis:6379/0"
-    REDIS_PASSWORD: str = ""
     
     # Cohere API Config (for Document Ranking and Relevance Grading)
     COHERE_API_KEY: str = ""
@@ -51,7 +49,6 @@ class Settings(BaseSettings):
     ENABLE_RAG_EVAL: bool = False
     MAX_QUERY_LENGTH: int = 2000
     RATE_LIMIT_PER_MINUTE: int = 30
-    RATE_LIMIT_RPM: int = 30
 
     # Auth Config
     AUTH_ENABLED: bool = False

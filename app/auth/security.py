@@ -8,10 +8,10 @@ from app.auth.models import UserContext
 from app.core.config import settings
 from app.core.errors import CopilotError
 
-from app.auth.database import get_user, pwd_context
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
-# Dummy local DB for auth - DEPRECATED, use database.py instead
+# Dummy local DB for auth
 USERS = {
     "admin": {"password_hash": pwd_context.hash("admin123"), "role": "admin"},
     "user": {"password_hash": pwd_context.hash("user123"), "role": "user"}

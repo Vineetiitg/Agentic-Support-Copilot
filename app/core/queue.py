@@ -8,19 +8,13 @@ _arq_pool: ArqRedis | None = None
 
 
 def get_redis_settings() -> RedisSettings:
-    rs = RedisSettings.from_dsn(settings.REDIS_URL)
-    if settings.REDIS_PASSWORD and not rs.password:
-        rs.password = settings.REDIS_PASSWORD
-    return rs
+    return RedisSettings.from_dsn(settings.REDIS_URL)
 
 
 async def get_redis_client() -> aioredis.Redis:
     global _redis_client
     if _redis_client is None:
-        kwargs = {"decode_responses": True}
-        if settings.REDIS_PASSWORD and "@" not in settings.REDIS_URL:
-            kwargs["password"] = settings.REDIS_PASSWORD
-        _redis_client = aioredis.from_url(settings.REDIS_URL, **kwargs)
+        _redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
     return _redis_client
 
 

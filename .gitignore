@@ -31,4 +31,10 @@ brain/
 .DS_Store
 *.lock
 
+
 data/users.db
+data/*.lock
+.cursor/
+*.pyc
+__pycache__/
+.env
