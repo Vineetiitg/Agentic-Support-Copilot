@@ -4,7 +4,6 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.documents import Document
 from langchain_openai import ChatOpenAI
 from langgraph.graph import START, END, StateGraph
-import httpx
 
 from app.core.config import settings
 from app.core.logging import logger
@@ -27,29 +26,7 @@ class GraphState(TypedDict):
     max_similarity: Optional[float]
 
 
-_http_client = httpx.AsyncClient(
-    http2=True,
-    limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
-    timeout=httpx.Timeout(60.0, connect=10.0),
-)
-
-llm = ChatOpenAI(
-    model=settings.LLM_MODEL,
-    temperature=0,
-    openai_api_key=settings.OPENROUTER_API_KEY,
-    openai_api_base=settings.OPENROUTER_BASE_URL,
-    default_headers={"HTTP-Referer": "https://localhost:3000", "X-Title": "Support Docs Copilot"},
-    http_async_client=_http_client,
-)
-
-llm_slow = ChatOpenAI(
-    model=getattr(settings, "SLOW_LLM_MODEL", settings.LLM_MODEL),
-    temperature=0,
-    openai_api_key=settings.OPENROUTER_API_KEY,
-    openai_api_base=settings.OPENROUTER_BASE_URL,
-    default_headers={"HTTP-Referer": "https://localhost:3000", "X-Title": "Support Docs Copilot"},
-    http_async_client=_http_client,
-)
+from app.core.llm_factory import get_fast_llm, get_slow_llm
 
 
 async def retrieve(state: GraphState):
@@ -131,7 +108,7 @@ async def generate(state: GraphState):
         Answer:""",
         input_variables=["question", "context", "chat_history"],
     )
-    selected_llm = llm_slow if run_count > 1 else llm
+    selected_llm = get_slow_llm() if run_count > 1 else get_fast_llm()
     if run_count > 1:
         logger.info(f"Using slow reasoning model ({getattr(settings, 'SLOW_LLM_MODEL', 'default')}) for retry attempt #{run_count}")
     rag_chain = prompt | selected_llm
