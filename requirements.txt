@@ -39,3 +39,4 @@ transformers==4.39.3
 cohere>=7.0.0
 flashrank>=0.2.8
 
+filelock>=3.13.0
