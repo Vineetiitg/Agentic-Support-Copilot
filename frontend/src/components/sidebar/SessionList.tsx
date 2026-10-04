@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { MessageSquare, Trash2, Loader2 } from 'lucide-react'
-import { listSessions, deleteSession, type Session } from '@/api/sessions'
-import { Button } from '@/components/ui/button'
+import { MessageSquare, Trash2 } from 'lucide-react'
+import { listSessions, deleteSession } from '@/api/sessions'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 

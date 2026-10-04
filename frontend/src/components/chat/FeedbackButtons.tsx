@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { ThumbsUp, ThumbsDown } from 'lucide-react'
 import apiClient from '@/api/client'
-import { cn } from '@/lib/utils'
 
 interface Props {
   query: string

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FileText, Trash2, Upload, RefreshCw, Play, Loader2, Download } from 'lucide-react'
+import { FileText, Trash2, Upload, RefreshCw, Play, Loader2 } from 'lucide-react'
 import AppLayout from '@/components/layout/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -100,9 +100,9 @@ function DocumentsTab({ toast, queryClient }: { toast: any; queryClient: any }) 
           <div className="flex gap-2">
             <label className="cursor-pointer">
               <input type="file" multiple className="hidden" onChange={handleUpload} />
-              <Button variant="outline" size="sm" asChild>
-                <span><Upload size={14} className="mr-1" /> Upload</span>
-              </Button>
+              <span className="inline-flex items-center justify-center rounded-lg font-medium transition-all duration-200 border border-white/10 hover:bg-white/5 text-slate-300 h-8 px-3 text-xs">
+                <Upload size={14} className="mr-1" /> Upload
+              </span>
             </label>
             <Button
               variant="outline"
