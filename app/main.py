@@ -79,8 +79,8 @@ async def health_endpoint():
 
 @app.get("/ready")
 async def ready_endpoint():
-    openrouter = check_openrouter()
-    qdrant = check_qdrant()
+    openrouter = await check_openrouter()
+    qdrant = await check_qdrant()
     return {
         "ready": bool(openrouter.get("ok") and qdrant.get("ok")),
         "openrouter": openrouter,
