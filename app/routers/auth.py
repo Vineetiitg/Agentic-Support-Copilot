@@ -11,6 +11,7 @@ router = APIRouter()
 
 @router.post("/auth/login", response_model=Token)
 async def login_endpoint(form_data: OAuth2PasswordRequestForm = Depends()):
+    print(f"DEBUG: Received username={repr(form_data.username)} password={repr(form_data.password)}")
     user = USERS.get(form_data.username)
     if not user or not verify_password(form_data.password, user["password_hash"]):
         raise CopilotError("Incorrect username or password", status_code=401)

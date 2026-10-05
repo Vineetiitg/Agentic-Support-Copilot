@@ -1,42 +1,58 @@
+# Python
 venv/
 .venv/
 __pycache__/
 *.py[cod]
+*.pyc
 .pytest_cache/
 .ragas_cache/
-qdrant_data/
+*.egg-info/
+
+# Environment
 .env
 .env.*
 !.env.example
-.python/
-*.log
-*.err.log
-frontend.log
-backend.log
+
+# Data & Cache
+qdrant_data/
 fastembed_cache/
 *fastembed_cache/
 *flashrank_cache/
 .cache/
+data/document_registry.json
+data/users.db
+data/*.lock
+
+# Logs
+*.log
+*.err.log
+frontend.log
+backend.log
+
+# Reports
 reports/*.html
 reports/*.json
-data/document_registry.json
 
-# IDE and Agent metadata
+# Node / Frontend
+node_modules/
+frontend/dist/
+
+# IDE & Editor
 .gemini/
 .agents/
 brain/
 .idea/
 .vscode/
-*.sh
-.DS_Store
-*.lock
-
-
-data/users.db
-data/*.lock
 .cursor/
-*.pyc
-__pycache__/
-.env
+.DS_Store
 
-frontend/node_modules
+# OS
+Thumbs.db
+
+# Lock files (keep package-lock.json for reproducibility)
+*.lock
+!frontend/package-lock.json
+
+# Scratch / test files
+test_api.py
+start.ps1

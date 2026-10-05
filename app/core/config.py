@@ -2,7 +2,12 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Support Docs Copilot"
-    CORS_ORIGINS: list[str] = ["http://localhost:8501", "http://localhost:3000"]
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://localhost:8501",
+    ]
     
     # OpenRouter / LPU LLM Config
     OPENROUTER_API_KEY: str = ""

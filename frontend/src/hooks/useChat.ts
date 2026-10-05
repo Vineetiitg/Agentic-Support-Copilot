@@ -33,6 +33,12 @@ export function useChat(sessionId: string) {
         signal: abortRef.current.signal,
       })
 
+      if (response.status === 401) {
+        useAuthStore.getState().logout()
+        window.location.href = '/login'
+        return
+      }
+
       if (!response.ok) {
         throw new Error(`Server error: ${response.status}`)
       }

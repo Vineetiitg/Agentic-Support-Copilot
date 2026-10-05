@@ -3,7 +3,6 @@ import axios from 'axios'
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
 
 export async function loginUser(username: string, password: string) {
-  // FastAPI OAuth2 expects form-urlencoded data
   const formData = new URLSearchParams()
   formData.append('username', username)
   formData.append('password', password)
