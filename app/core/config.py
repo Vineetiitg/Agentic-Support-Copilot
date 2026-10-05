@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     RETRIEVAL_TOP_K: int = 5
     RERANKER_TOP_N: int = 3
     RERANKER_ENABLED: bool = True
-    MIN_RELEVANCE_SCORE: float = 0.2
+    MIN_RELEVANCE_SCORE: float = 0.92
     MAX_CONTEXT_CHARS: int = 12000
 
     # Chunking Config
@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     ENABLE_RAG_EVAL: bool = False
     MAX_QUERY_LENGTH: int = 2000
     RATE_LIMIT_PER_MINUTE: int = 30
+    
+    # Web Search Fallback (Tavily)
+    ENABLE_WEB_SEARCH: bool = False
+    TAVILY_API_KEY: str = ""
+    WEB_SEARCH_MAX_RESULTS: int = 3
 
     # Auth Config
     AUTH_ENABLED: bool = False

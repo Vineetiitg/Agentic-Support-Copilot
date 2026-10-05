@@ -65,11 +65,7 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
     ports:
-      - "8501:8501"
-    volumes:
-      - ./ui:/app/ui
-    environment:
-      - BACKEND_BASE_URL=http://backend:8000
+      - "80:80"
     depends_on:
       - backend
     restart: always
