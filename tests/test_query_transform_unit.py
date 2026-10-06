@@ -19,7 +19,7 @@ class TestCondenseQuery:
             mock_llm = AsyncMock()
             mock_response = AsyncMock()
             mock_response.content = "Condensed query about X"
-            mock_llm.ainvoke.return_value = mock_response
+            mock_llm.ainvoke = AsyncMock(return_value=mock_response)
             mock_llm_cls.return_value = mock_llm
             result = await condense_query("Tell me more about it", history, summary="")
             assert isinstance(result, str)
