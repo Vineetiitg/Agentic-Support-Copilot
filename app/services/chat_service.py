@@ -30,10 +30,22 @@ async def resolve_query_speculative(query: str, chat_history: list, summary: str
 
 async def prepare_chat_context(user_id: str, session_id: str | None, query: str, chat_history: list):
     """Prepare session, history, and run speculative retrieval."""
+    from app.engine.user_memory import extract_and_save_user_facts, retrieve_user_profile
+    import asyncio
+    
     sid = session_id or str(uuid.uuid4())
     if not chat_history:
         chat_history = await get_session_history(user_id, sid, limit=6)
     summary = await get_session_summary(user_id, sid)
+    
+    # 1. Retrieve user profile and merge with summary
+    user_profile = await retrieve_user_profile(user_id, query)
+    if user_profile:
+        summary = (summary + "\n" + user_profile).strip() if summary else user_profile
+        
+    # 2. Extract and save new facts in background
+    asyncio.create_task(extract_and_save_user_facts(user_id, query))
+    
     standalone_query, speculative_docs = await resolve_query_speculative(query, chat_history, summary)
     return sid, chat_history, summary, standalone_query, speculative_docs
 

@@ -73,7 +73,7 @@ async def decide_to_generate(state: GraphState):
     if not state.get("documents"):
         # Use a fast LLM call to determine if this is a factual query that needs searching
         llm = get_fast_llm()
-        prompt = f"Does the following user query require searching a knowledge base or the internet for factual information? Or is it just a greeting, small talk, or conversational statement? Query: '{state['question']}'. Answer ONLY 'yes' (needs search) or 'no' (conversational)."
+        prompt = f"Analyze this query. If it is a personal question about the user themselves (their name, their class, their job) OR a conversational greeting, output 'no'. If it is a general technical or factual question that requires searching the web or documentation, output 'yes'. Query: '{state['question']}'. Answer ONLY 'yes' or 'no'."
         try:
             # We use a synchronous invoke here just for simplicity, or we can await ainvoke. Wait, decide_to_generate is an async function in langgraph 0.2.x, but langgraph routing functions can be async or sync. In this codebase it is async.
             response = await llm.ainvoke(prompt)
@@ -160,9 +160,11 @@ Answer:"""
     else:
         template = """You are a friendly Support Docs Copilot.
 
-If the user is just greeting you, making small talk, or making a conversational statement (e.g. "I am Raj"), respond naturally and warmly without citing anything.
+If the user is just greeting you, making small talk, or making a conversational statement, respond naturally and warmly without citing anything.
 
-If the user is asking a factual question or seeking support:
+If the user asks a personal question about themselves (e.g. their name, class, or preferences), check the System Summary at the top of the Chat History to see if you have that information saved. If you do, answer naturally without citing a doc_id. If you don't, politely tell them you don't know yet.
+
+If the user is asking a technical or factual question:
 CRITICAL INSTRUCTION (Cite-to-Write):
 You must use ONLY the retrieved context to answer. Append [doc_id] to the end of every sentence. Do not write a sentence if you cannot cite a source from the retrieved context. If the context does not contain the answer, say "I don't know based on the available documentation".
 
