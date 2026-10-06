@@ -128,18 +128,21 @@ async def chat_stream_endpoint(request: ChatRequest, http_request: Request, user
 
             if not has_streamed_tokens:
                 if not documents:
-                    yield "I am sorry, no reliable matching documentation was found."
+                    fallback_msg = "I am sorry, no reliable matching documentation was found."
                 else:
-                    yield "I am sorry, I could not generate a response based on the available documentation."
+                    fallback_msg = "I am sorry, I could not generate a response based on the available documentation."
+                yield fallback_msg
+                await save_exchange(user.user_id, session_id, request.query, fallback_msg, [], 0.0)
                 return
 
             if str(grounded_result).lower() == "no":
-                yield "\n\n🚨 **[CANCELLED: This response violated safety guidelines and has been retracted.]**"
+                fallback_msg = "\n\n🚨 **[CANCELLED: This response violated safety guidelines and has been retracted.]**"
+                yield fallback_msg
+                await save_exchange(user.user_id, session_id, request.query, fallback_msg, documents, 0.0)
                 return
 
-            if has_streamed_tokens and documents and str(grounded_result).lower() != "no":
+            if has_streamed_tokens and str(grounded_result).lower() != "no":
                 redacted_text = redact_sensitive_data(streamed_text)
-                await set_cached_answer(standalone_query, redacted_text, documents, 0.98)
                 await save_exchange(user.user_id, session_id, request.query, redacted_text, documents, 0.98)
                 
             log_request_metrics(metrics, route="/chat/stream", sources=len(documents), model=settings.LLM_MODEL)

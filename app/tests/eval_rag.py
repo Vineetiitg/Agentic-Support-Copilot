@@ -115,6 +115,8 @@ async def run_local_evaluation(
         ragas_result = evaluate(
             ragas_dataset,
             metrics=[answer_relevancy, faithfulness, context_precision, context_recall, answer_correctness],
+            llm=fast_llm_wrapped,
+            embeddings=embeddings_wrapped,
             run_config=RunConfig(max_workers=4, max_wait=60, max_retries=2),
         )
         ragas_scores = ragas_result

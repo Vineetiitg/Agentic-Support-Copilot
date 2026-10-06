@@ -43,6 +43,7 @@ async def check_cache(query: str):
 
 async def save_exchange(user_id: str, session_id: str, query: str, answer: str, sources: list, confidence: float):
     """Persist both sides of the conversation and cache the answer."""
-    await set_cached_answer(query, answer, sources, confidence)
+    if sources:
+        await set_cached_answer(query, answer, sources, confidence)
     await add_session_message(user_id, session_id, "user", query)
     await add_session_message(user_id, session_id, "assistant", answer, sources, confidence)
