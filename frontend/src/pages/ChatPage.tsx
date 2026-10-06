@@ -8,7 +8,7 @@ import { getSessionMessages } from '@/api/sessions'
 
 export default function ChatPage() {
   const [sessionId, setSessionId] = useState(() => uuidv4())
-  const { messages, isStreaming, sendMessage, stopGeneration, clearMessages } = useChat(sessionId)
+  const { messages, setMessages, isStreaming, sendMessage, stopGeneration, clearMessages } = useChat(sessionId)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
