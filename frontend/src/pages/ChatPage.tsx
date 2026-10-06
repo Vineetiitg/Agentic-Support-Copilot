@@ -4,6 +4,7 @@ import AppLayout from '@/components/layout/AppLayout'
 import ChatMessage from '@/components/chat/ChatMessage'
 import ChatInput from '@/components/chat/ChatInput'
 import { useChat } from '@/hooks/useChat'
+import { getSessionMessages } from '@/api/sessions'
 
 export default function ChatPage() {
   const [sessionId, setSessionId] = useState(() => uuidv4())
@@ -19,8 +20,23 @@ export default function ChatPage() {
     clearMessages()
   }
 
+  const handleSelectSession = async (id: string) => {
+    setSessionId(id)
+    try {
+      const msgs = await getSessionMessages(id)
+      setMessages(msgs)
+    } catch (err) {
+      console.error("Failed to load session", err)
+      clearMessages()
+    }
+  }
+
   return (
-    <AppLayout onNewChat={handleNewChat}>
+    <AppLayout 
+      onNewChat={handleNewChat}
+      activeSessionId={sessionId}
+      onSelectSession={handleSelectSession}
+    >
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-16 xl:px-32">
         {messages.length === 0 ? (
