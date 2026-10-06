@@ -77,7 +77,11 @@ async def condense_query(query: str, chat_history: list[dict] = None, summary: s
             default_headers={"HTTP-Referer": "https://localhost:3000", "X-Title": "Support Docs Copilot"},
         )
         prompt = PromptTemplate(
-            template="""Given the following chat history and a follow-up question, rewrite the follow-up question into a standalone query that can be understood without the chat history. Do not answer the question, just reformulate it. If the follow-up question is already standalone, return it unchanged.
+            template="""Given the following chat history and a follow-up question, rewrite the follow-up question into a standalone query that can be understood without the chat history. Do not answer the question, just reformulate it.
+
+CRITICAL INSTRUCTIONS:
+1. If the follow-up question is a greeting, small talk, or a personal statement (e.g., "Hi", "My name is Raj", "Thank you"), RETURN IT EXACTLY UNCHANGED. Do not rewrite personal statements into third-person questions like "Who is Raj?".
+2. If the follow-up question is already standalone, return it unchanged.
 
 Chat History:
 {chat_history}
