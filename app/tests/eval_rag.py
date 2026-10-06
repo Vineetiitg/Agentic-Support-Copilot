@@ -84,19 +84,25 @@ async def run_local_evaluation(
         default_headers={"HTTP-Referer": "https://localhost:3000", "X-Title": "Support Docs Copilot"},
     )
 
+    from ragas.llms import LangchainLLMWrapper
+    from ragas.embeddings import LangchainEmbeddingsWrapper
+
+    fast_llm_wrapped = LangchainLLMWrapper(fast_llm)
+    slow_llm_wrapped = LangchainLLMWrapper(slow_llm)
+    embeddings_wrapped = LangchainEmbeddingsWrapper(dense_embeddings())
+
     # Assign fast LLM to structural metrics and slow LLM to reasoning metrics
-    answer_relevancy.llm = fast_llm
-    context_precision.llm = fast_llm
-    context_recall.llm = fast_llm
-    faithfulness.llm = slow_llm
-    answer_correctness.llm = slow_llm
+    answer_relevancy.llm = fast_llm_wrapped
+    context_precision.llm = fast_llm_wrapped
+    context_recall.llm = fast_llm_wrapped
+    faithfulness.llm = slow_llm_wrapped
+    answer_correctness.llm = slow_llm_wrapped
 
     # Assign embeddings to metrics that need them
-    embeddings = dense_embeddings()
-    answer_relevancy.embeddings = embeddings
-    context_precision.embeddings = embeddings
-    context_recall.embeddings = embeddings
-    answer_correctness.embeddings = embeddings
+    answer_relevancy.embeddings = embeddings_wrapped
+    context_precision.embeddings = embeddings_wrapped
+    context_recall.embeddings = embeddings_wrapped
+    answer_correctness.embeddings = embeddings_wrapped
 
     ragas_dataset = Dataset.from_dict({
         "question": questions,
