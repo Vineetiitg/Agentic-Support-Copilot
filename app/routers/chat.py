@@ -120,7 +120,14 @@ async def chat_stream_endpoint(request: ChatRequest, http_request: Request, user
                         output = event.get("data", {}).get("output")
                         if isinstance(output, dict):
                             if "documents" in output:
-                                documents = output["documents"]
+                                docs_raw = output["documents"]
+                                documents = []
+                                for d in docs_raw:
+                                    if hasattr(d, "page_content"):
+                                        doc_dict = {"source": d.metadata.get("source", "Unknown"), "snippet": d.page_content}
+                                        documents.append(doc_dict)
+                                    elif isinstance(d, dict):
+                                        documents.append(d)
                             if "sources" in output:
                                 sources_text = output["sources"]
                             if "grounded" in output:
