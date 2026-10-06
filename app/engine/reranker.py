@@ -74,7 +74,7 @@ def rerank_with_flashrank(question: str, documents: List[Document], top_k: int) 
 
 
 def rerank_documents(question: str, documents: List[Document], top_k: int = 3) -> List[Document]:
-    if not documents or len(documents) <= 1:
+    if not documents:
         return documents
 
     provider = getattr(settings, "RERANKER_PROVIDER", "auto").lower()

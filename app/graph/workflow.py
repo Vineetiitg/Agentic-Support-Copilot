@@ -24,6 +24,7 @@ class GraphState(TypedDict):
     summary: Optional[str]
     optimistic_route: Optional[bool]
     max_similarity: Optional[float]
+    web_searched: Optional[bool]
 
 
 from app.core.llm_factory import get_fast_llm, get_slow_llm
@@ -60,14 +61,9 @@ async def grade_documents(state: GraphState):
         
     filtered_docs = []
     for doc in reranked_docs:
-        score = doc.metadata.get("relevance_score", doc.metadata.get("rerank_score", 1.0))
+        score = doc.metadata.get("relevance_score", doc.metadata.get("rerank_score", 0.0))
         if score >= settings.MIN_RELEVANCE_SCORE:
             filtered_docs.append(doc)
-            
-    if not filtered_docs and reranked_docs:
-        top_score = reranked_docs[0].metadata.get("rerank_score", 0.0)
-        if top_score > 0.0:
-            filtered_docs = [reranked_docs[0]]
             
     logger.info(f"Relevance grader filtered {len(reranked_docs)} docs down to {len(filtered_docs)} relevant docs (threshold >= {settings.MIN_RELEVANCE_SCORE}).")
     return {"documents": filtered_docs}
@@ -75,10 +71,52 @@ async def grade_documents(state: GraphState):
 
 async def decide_to_generate(state: GraphState):
     if not state.get("documents"):
+        # Check if web search is enabled and we haven't already web-searched
+        if settings.ENABLE_WEB_SEARCH and settings.TAVILY_API_KEY and not state.get("web_searched"):
+            logger.info("ROUTE: NO RELEVANT LOCAL DOCS -> FALLBACK TO WEB SEARCH")
+            return "web_search"
         logger.info("ROUTE: ALL DOCS IRRELEVANT")
         return "end"
     logger.info("ROUTE: RELEVANT DOCS FOUND")
     return "generate"
+
+
+async def web_search(state: GraphState):
+    """Fallback web search node using Tavily when local documents are insufficient."""
+    logger.info("NODE: WEB SEARCH (TAVILY FALLBACK)")
+    question = state["question"]
+
+    try:
+        from tavily import TavilyClient
+        client = TavilyClient(api_key=settings.TAVILY_API_KEY)
+        response = client.search(
+            query=question,
+            max_results=settings.WEB_SEARCH_MAX_RESULTS,
+            search_depth="basic",
+        )
+
+        web_documents = []
+        for result in response.get("results", []):
+            doc = Document(
+                page_content=result.get("content", ""),
+                metadata={
+                    "source": result.get("url", "web"),
+                    "title": result.get("title", ""),
+                    "doc_id": f"web-{hash(result.get('url', '')) % 100000}",
+                    "retrieval_method": "web_search",
+                }
+            )
+            web_documents.append(doc)
+
+        logger.info(f"Web search returned {len(web_documents)} results for query: '{question}'")
+        return {
+            "documents": web_documents,
+            "sources": source_citations(web_documents),
+            "web_searched": True,
+        }
+    except Exception as e:
+        logger.error(f"Web search failed: {e}")
+        return {"documents": [], "web_searched": True}
 
 
 async def generate(state: GraphState):
@@ -88,24 +126,42 @@ async def generate(state: GraphState):
     chat_history = state.get("chat_history", [])
     summary = state.get("summary", "")
     run_count = state.get("run_count", 0) + 1
+    web_searched = state.get("web_searched", False)
     
     history_lines = [f"{msg['role']}: {msg['content']}" for msg in chat_history[-6:]]
     if summary:
         history_lines.insert(0, summary if summary.startswith("System Summary:") else f"System Summary: {summary}")
     history_str = "\n".join(history_lines)
     context = build_context(documents)
+
+    # Use a slightly different prompt when answering from web search results
+    if web_searched:
+        template = """You are a Support Docs Copilot with web search capabilities. The local documentation did not contain a relevant answer, so web search results have been provided instead.
+
+Answer the question using the web search results below. Cite the source URL at the end of each statement.
+If the web results don't contain a clear answer either, say "I could not find a reliable answer."
+
+Chat History:
+{chat_history}
+
+Question: {question} 
+Web Search Results: {context} 
+Answer:"""
+    else:
+        template = """You are a Support Docs Copilot. Use only the retrieved context to answer the question concisely.
+
+CRITICAL INSTRUCTION (Cite-to-Write):
+You must append [doc_id] to the end of every sentence. Do not write a sentence if you cannot cite a source from the retrieved context. If the context does not contain the answer, say "I don't know".
+
+Chat History:
+{chat_history}
+
+Question: {question} 
+Context: {context} 
+Answer:"""
+
     prompt = PromptTemplate(
-        template="""You are a Support Docs Copilot. Use only the retrieved context to answer the question concisely.
-        
-        CRITICAL INSTRUCTION (Cite-to-Write):
-        You must append [doc_id] to the end of every sentence. Do not write a sentence if you cannot cite a source from the retrieved context. If the context does not contain the answer, say "I don't know".
-        
-        Chat History:
-        {chat_history}
-        
-        Question: {question} 
-        Context: {context} 
-        Answer:""",
+        template=template,
         input_variables=["question", "context", "chat_history"],
     )
     selected_llm = get_slow_llm() if run_count > 1 else get_fast_llm()
@@ -156,9 +212,11 @@ def compile_workflow():
     workflow.add_node("grade_documents", grade_documents)
     workflow.add_node("generate", generate)
     workflow.add_node("evaluate_answer", evaluate_answer)
+    workflow.add_node("web_search", web_search)
     workflow.add_edge(START, "retrieve")
     workflow.add_conditional_edges("retrieve", decide_optimistic_or_grade, {"generate": "generate", "grade_documents": "grade_documents"})
-    workflow.add_conditional_edges("grade_documents", decide_to_generate, {"generate": "generate", "end": END})
+    workflow.add_conditional_edges("grade_documents", decide_to_generate, {"generate": "generate", "web_search": "web_search", "end": END})
+    workflow.add_edge("web_search", "generate")
     workflow.add_edge("generate", "evaluate_answer")
     workflow.add_conditional_edges("evaluate_answer", check_hallucinations, {"end": END, "regenerate": "generate"})
     return workflow.compile()
