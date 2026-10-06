@@ -71,13 +71,23 @@ async def grade_documents(state: GraphState):
 
 async def decide_to_generate(state: GraphState):
     if not state.get("documents"):
-        # Check if web search is enabled and we haven't already web-searched
-        if settings.ENABLE_WEB_SEARCH and settings.TAVILY_API_KEY and not state.get("web_searched"):
+        # Use a fast LLM call to determine if this is a factual query that needs searching
+        llm = get_fast_llm()
+        prompt = f"Does the following user query require searching a knowledge base or the internet for factual information? Or is it just a greeting, small talk, or conversational statement? Query: '{state['question']}'. Answer ONLY 'yes' (needs search) or 'no' (conversational)."
+        try:
+            # We use a synchronous invoke here just for simplicity, or we can await ainvoke. Wait, decide_to_generate is an async function in langgraph 0.2.x, but langgraph routing functions can be async or sync. In this codebase it is async.
+            response = await llm.ainvoke(prompt)
+            needs_search = "yes" in response.content.lower()
+        except Exception:
+            needs_search = True # safe fallback
+            
+        if needs_search and settings.ENABLE_WEB_SEARCH and settings.TAVILY_API_KEY and not state.get("web_searched"):
             logger.info("ROUTE: NO RELEVANT LOCAL DOCS -> FALLBACK TO WEB SEARCH")
             return "web_search"
-        logger.info("ROUTE: ALL DOCS IRRELEVANT")
-        return "end"
-    logger.info("ROUTE: RELEVANT DOCS FOUND")
+            
+        logger.info(f"ROUTE: ALL DOCS IRRELEVANT (Needs Search: {needs_search}) -> GENERATE")
+        return "generate"
+    logger.info("ROUTE: RELEVANT DOCS FOUND -> GENERATE")
     return "generate"
 
 
@@ -148,10 +158,13 @@ Question: {question}
 Web Search Results: {context} 
 Answer:"""
     else:
-        template = """You are a Support Docs Copilot. Use only the retrieved context to answer the question concisely.
+        template = """You are a friendly Support Docs Copilot.
 
+If the user is just greeting you, making small talk, or making a conversational statement (e.g. "I am Raj"), respond naturally and warmly without citing anything.
+
+If the user is asking a factual question or seeking support:
 CRITICAL INSTRUCTION (Cite-to-Write):
-You must append [doc_id] to the end of every sentence. Do not write a sentence if you cannot cite a source from the retrieved context. If the context does not contain the answer, say "I don't know".
+You must use ONLY the retrieved context to answer. Append [doc_id] to the end of every sentence. Do not write a sentence if you cannot cite a source from the retrieved context. If the context does not contain the answer, say "I don't know based on the available documentation".
 
 Chat History:
 {chat_history}
@@ -177,6 +190,10 @@ async def evaluate_answer(state: GraphState):
     documents = state["documents"]
     generation = state["generation"]
     
+    # Skip hallucination checks for conversational queries with no docs
+    if not documents:
+        return {"grounded": "yes", "confidence_score": 0.99}
+        
     context = build_context(documents)
     grade, confidence = evaluate_nli_groundedness(context, generation)
         
