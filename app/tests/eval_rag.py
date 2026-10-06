@@ -7,9 +7,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from time import perf_counter
 from datasets import Dataset
-from ragas import evaluate
-from ragas.metrics import answer_relevancy, faithfulness, context_precision, context_recall, answer_correctness
-from ragas.run_config import RunConfig
 from langchain_openai import ChatOpenAI
 
 from app.core.config import settings
@@ -35,6 +32,10 @@ async def run_local_evaluation(
     assert_precision: float = None,
     assert_relevancy: float = None,
 ) -> dict:
+    from ragas import evaluate
+    from ragas.metrics import answer_relevancy, faithfulness, context_precision, context_recall, answer_correctness
+    from ragas.run_config import RunConfig
+
     agent = compile_workflow()
     rows = load_golden_questions()
     results = []
