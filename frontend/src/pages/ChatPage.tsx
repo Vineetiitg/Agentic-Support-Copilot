@@ -25,7 +25,7 @@ export default function ChatPage() {
       <div className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-16 xl:px-32">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="text-6xl mb-4">🚀</div>
+            <img src="/logo.png" alt="Logo" className="w-20 h-20 mb-4 object-contain opacity-80" />
             <h2 className="text-2xl font-semibold text-slate-200 mb-2">Support Docs Copilot</h2>
             <p className="text-slate-400 max-w-md">
               Ask any question about our product documentation. I'll find the most relevant answer with source citations.

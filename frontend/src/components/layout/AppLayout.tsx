@@ -20,9 +20,12 @@ export default function AppLayout({ children, onNewChat }: { children: ReactNode
       <aside className="w-64 flex-shrink-0 bg-slate-900/50 border-r border-white/5 flex flex-col">
         {/* Logo */}
         <div className="p-4 border-b border-white/5">
-          <h1 className="text-lg font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-            🚀 Support Copilot
-          </h1>
+          <div className="flex items-center gap-2">
+            <img src="/logo.png" alt="Logo" className="w-6 h-6 object-contain" />
+            <h1 className="text-lg font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+              Support Copilot
+            </h1>
+          </div>
         </div>
 
         {/* New chat button */}
