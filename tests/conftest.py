@@ -14,15 +14,37 @@ def reset_qdrant_client():
     """Reset the shared Qdrant client before and after each test."""
     from app.core.config import settings
     import app.core.dependencies as deps
+    import app.engine.user_memory as user_mem
+    import app.engine.indexer as indexer
     
     # Force memory mode for tests to prevent locks
     settings.QDRANT_LOCATION = ":memory:"
     
     with deps._client_lock:
         deps._qdrant_client = None
+    
+    # Reset collection existence flags
+    user_mem._collection_exists = False
+    indexer._collection_exists = False if hasattr(indexer, '_collection_exists') else None
+    
+    # Initialize collections for tests
+    from langchain_core.documents import Document
+    client = deps.get_qdrant_client()
+    
+    # Initialize support_docs collection if needed
+    if not any(c.name == settings.COLLECTION_NAME for c in client.get_collections().collections):
+        indexer.index_documents([Document(page_content="Test document", metadata={"doc_id": "test"})])
+    
+    # Initialize user_profiles collection if needed
+    if not any(c.name == "user_profiles" for c in client.get_collections().collections):
+        from app.engine.user_memory import get_profile_store
+        get_profile_store()
+    
     yield
+    
     with deps._client_lock:
         deps._qdrant_client = None
+    user_mem._collection_exists = False
 
 
 
