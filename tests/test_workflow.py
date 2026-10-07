@@ -119,17 +119,19 @@ async def test_workflow_happy_path_returns_grounded_answer():
 
 @pytest.mark.asyncio
 async def test_workflow_ends_when_no_documents_retrieved():
-    """When retriever returns nothing, grade filters to empty → graph ends."""
+    """When retriever returns nothing, grade filters to empty → falls back to conversational generation."""
     with patch("app.graph.workflow.retrieve", new=_fake_retrieve_empty), \
-         patch("app.graph.workflow.grade_documents", new=_fake_grade_all_irrelevant):
+         patch("app.graph.workflow.grade_documents", new=_fake_grade_all_irrelevant), \
+         patch("app.graph.workflow.generate", new=_fake_generate), \
+         patch("app.graph.workflow.evaluate_answer", new=_fake_evaluate_grounded):
 
         from app.graph.workflow import compile_workflow
         agent = compile_workflow()
 
         state = await agent.ainvoke(_base_state(question="What is the meaning of life?"))
 
-    # No docs → no generation
-    assert "generation" not in state or state.get("generation") is None
+    # No docs → falls back to generate
+    assert "generation" in state
     assert state["documents"] == []
 
 
@@ -139,16 +141,18 @@ async def test_workflow_ends_when_no_documents_retrieved():
 
 @pytest.mark.asyncio
 async def test_workflow_ends_when_all_docs_graded_irrelevant():
-    """When grader rejects all docs, graph ends without calling generate."""
+    """When grader rejects all docs, falls back to conversational generation."""
     with patch("app.graph.workflow.retrieve", new=_fake_retrieve), \
-         patch("app.graph.workflow.grade_documents", new=_fake_grade_all_irrelevant):
+         patch("app.graph.workflow.grade_documents", new=_fake_grade_all_irrelevant), \
+         patch("app.graph.workflow.generate", new=_fake_generate), \
+         patch("app.graph.workflow.evaluate_answer", new=_fake_evaluate_grounded):
 
         from app.graph.workflow import compile_workflow
         agent = compile_workflow()
 
         state = await agent.ainvoke(_base_state(question="Tell me about quantum physics"))
 
-    assert "generation" not in state or state.get("generation") is None
+    assert "generation" in state
 
 
 # ---------------------------------------------------------------------------
