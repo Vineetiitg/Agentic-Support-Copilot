@@ -1,6 +1,6 @@
----
+﻿---
 title: Support Docs Copilot
-emoji: 🤖
+emoji: ðŸ¤–
 colorFrom: blue
 colorTo: indigo
 sdk: docker
@@ -8,32 +8,70 @@ pinned: false
 license: mit
 ---
 
-# Support Docs Copilot
+# ?? Support Docs Copilot
 
-[![Live Demo on HuggingFace](https://img.shields.io/badge/🤗%20Live%20Demo-HuggingFace%20Spaces-blue)](https://huggingface.co/spaces/vineet88/support-docs-copilot)
+[![Live Demo on HuggingFace](https://img.shields.io/badge/ðŸ¤—%20Live%20Demo-HuggingFace%20Spaces-blue)](https://huggingface.co/spaces/vineet88/support-docs-copilot)
+[![Deployed on AWS](https://img.shields.io/badge/Deployed%20on-AWS%20EC2-orange?logo=amazon-aws)](https://aws.amazon.com)
 [![codecov](https://codecov.io/gh/Vineetiitg/Agentic-Support-Copilot/graph/badge.svg)](https://codecov.io/gh/Vineetiitg/Agentic-Support-Copilot)
 
 A lightweight, production-ready advanced RAG support copilot featuring **speculative retrieval with similarity-based routing** (DeepSeek / Gemini / OpenRouter), **Qdrant hybrid retrieval**, **Cohere & FlashRank reranking**, **Redis semantic caching & session memory**, **Arq asynchronous background workers**, and a **LangGraph Self-RAG agent** with confidence scoring, query rewriting, input/output guardrails, and RAGAS benchmark evaluation.
 
+
+## ?? Demo & Previews
+
+<div align="center">
+  <!-- TODO: Replace with actual GIF link when uploaded -->
+  <img src="https://via.placeholder.com/800x450.png?text=Core+Chat+Experience+(GIF)" alt="Core Chat Experience" width="80%">
+  <p><em>The Core Chat Experience: Real-time streaming with source citations.</em></p>
+</div>
+
+<details>
+<summary><b>View More Screenshots</b></summary>
+<br/>
+<div align="center">
+  <!-- TODO: Replace with Admin Dashboard clip -->
+  <img src="https://via.placeholder.com/800x450.png?text=Admin+Dashboard+(Live+Sessions)" alt="Admin Dashboard" width="80%">
+  <p><em>Admin Dashboard: Live Session Observability.</em></p>
+  
+  <!-- TODO: Replace with RAGAS Evaluation Tab screenshot -->
+  <img src="https://via.placeholder.com/800x450.png?text=RAGAS+Evaluation+Tab" alt="RAGAS Evaluation" width="80%">
+  <p><em>RAGAS Evaluation Tab: Rigorous LLM Benchmarking.</em></p>
+  
+  <!-- TODO: Replace with Dark Mode UI screenshot -->
+  <img src="https://via.placeholder.com/800x450.png?text=Dark+Mode+React+UI" alt="Dark Mode UI" width="80%">
+  <p><em>Dark Mode UI: Clean, modern React frontend.</em></p>
+</div>
+</details>
+
+## ? Key Features
+
+- ? **Speculative Retrieval:** Routes requests dynamically across specialized models.
+- ? **Semantic Caching:** Sub-second cached responses dropping turnaround to ~15ms.
+- ? **JWT Authentication:** Secure role-based access for admins and users.
+- ? **Hallucination Fallback:** Self-RAG agent detects and retries hallucinated answers.
+- ? **Hybrid Reranking:** Dense + Sparse embeddings with Cohere/FlashRank.
+- ? **Async Background Workers:** Heavy ingestion tasks offloaded to Redis Arq.
+- ? **Guardrails:** Real-time PII redaction and prompt injection protection.
+
 ---
 
-## 📂 Project Structure
+## ðŸ“‚ Project Structure
 
 ```
 app/
-├── routers/          # API route handlers (chat, admin, auth, sessions)
-├── services/         # Business logic layer (chat, feedback)
-├── engine/           # RAG pipeline (retrieval, reranking, caching, memory)
-├── graph/            # LangGraph agentic workflow
-├── guardrails/       # Input validation and output safety
-├── auth/             # JWT auth with SQLite user store
-├── core/             # Config, logging, LLM factory, dependencies
-└── observability/    # Prometheus metrics and monitoring
+â”œâ”€â”€ routers/          # API route handlers (chat, admin, auth, sessions)
+â”œâ”€â”€ services/         # Business logic layer (chat, feedback)
+â”œâ”€â”€ engine/           # RAG pipeline (retrieval, reranking, caching, memory)
+â”œâ”€â”€ graph/            # LangGraph agentic workflow
+â”œâ”€â”€ guardrails/       # Input validation and output safety
+â”œâ”€â”€ auth/             # JWT auth with SQLite user store
+â”œâ”€â”€ core/             # Config, logging, LLM factory, dependencies
+â””â”€â”€ observability/    # Prometheus metrics and monitoring
 tests/                # Unit, integration, and evaluation tests
 ui/                   # Streamlit frontend with component architecture
 ```
 
-## 🧩 Tech Stack
+## ðŸ§© Tech Stack
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688?logo=fastapi)
@@ -48,27 +86,27 @@ ui/                   # Streamlit frontend with component architecture
 
 ---
 
-## 🏗️ System Architecture
+## ðŸ—ï¸ System Architecture
 
 ```mermaid
 flowchart TB
-    subgraph Client["🖥️ Client Layer"]
-        UI["Streamlit Chat UI<br/>Port 8501"]
+    subgraph Client["ðŸ–¥ï¸ Client Layer"]
+        UI["React Chat UI (Vite + Tailwind + Zustand)<br/>Port 5173"]
     end
 
-    subgraph API["⚡ API Layer (FastAPI)"]
+    subgraph API["âš¡ API Layer (FastAPI)"]
         Auth["JWT Auth + RBAC"]
-        Guard["Input Guardrails<br/>Prompt Injection · Rate Limit"]
+        Guard["Input Guardrails<br/>Prompt Injection Â· Rate Limit"]
         Chat["/chat & /chat/stream Endpoints"]
-        Admin["Admin Endpoints<br/>Ingest · Upload · Reset · Eval"]
+        Admin["Admin Endpoints<br/>Ingest Â· Upload Â· Reset Â· Eval"]
     end
 
-    subgraph Memory["⚡ Cache & Async Queue"]
+    subgraph Memory["âš¡ Cache & Async Queue"]
         Redis["Redis Session Memory<br/>Multi-Turn Coreference Resolution"]
         Worker["Arq Background Workers<br/>Async Task Processing"]
     end
 
-    subgraph Agent["🧠 LangGraph Self-RAG Agent"]
+    subgraph Agent["ðŸ§  LangGraph Self-RAG Agent"]
         direction TB
         Rewrite["1. Query Rewriting<br/>Speculative Condensation"]
         Retrieve["2. Retrieve<br/>Qdrant Hybrid Search"]
@@ -78,19 +116,19 @@ flowchart TB
         Evaluate["6. Evaluate & Score<br/>Confidence Scoring & Groundedness"]
     end
 
-    subgraph Storage["🗄️ Data Layer"]
+    subgraph Storage["ðŸ—„ï¸ Data Layer"]
         Qdrant["Qdrant Vector DB<br/>Dense + Sparse (BM25)"]
         Embed["FastEmbed ONNX<br/>CPU-Only Embeddings"]
     end
 
-    subgraph Safety["🛡️ Output Safety"]
-        Redact["PII Redaction<br/>SSN · CC · Email · Phone"]
+    subgraph Safety["ðŸ›¡ï¸ Output Safety"]
+        Redact["PII Redaction<br/>SSN Â· CC Â· Email Â· Phone"]
     end
 
-    subgraph Observe["📊 Observability & Benchmarks"]
+    subgraph Observe["ðŸ“Š Observability & Benchmarks"]
         LangSmith["LangSmith Tracing"]
         Metrics["Latency & Confidence Metrics"]
-        RAGAS["RAGAS Benchmarks<br/>Faithfulness · Relevancy"]
+        RAGAS["RAGAS Benchmarks<br/>Faithfulness Â· Relevancy"]
         Bench["HF Readiness Suite<br/>5-Case Golden Benchmark"]
     end
 
@@ -107,8 +145,8 @@ flowchart TB
     Grade -->|Relevant| Generate
     Grade -->|"All Irrelevant"| UI
     Generate --> Evaluate
-    Evaluate -->|"Grounded (Score ≥ Threshold) ✅"| Redact
-    Evaluate -->|"Hallucinated / Low Confidence 🔄"| Generate
+    Evaluate -->|"Grounded (Score â‰¥ Threshold) âœ…"| Redact
+    Evaluate -->|"Hallucinated / Low Confidence ðŸ”„"| Generate
     Redact --> UI
     Admin -->|Async Jobs| Worker
     Worker -->|Ingest / Process| Embed
@@ -120,25 +158,47 @@ flowchart TB
 
 ```mermaid
 stateDiagram-v2
-    [*] --> QueryRewrite: User Query + Session Memory
-    QueryRewrite --> Retrieve: Speculative Dual-Path Query
-    Retrieve --> Rerank: Top-K Hybrid Chunks
-    Rerank --> GradeDocuments: Top-N Reranked Chunks
-    GradeDocuments --> Generate: Relevant Docs Found
-    GradeDocuments --> [*]: All Docs Irrelevant
-    Generate --> EvaluateAnswer: Generated Response + Confidence Score
-    EvaluateAnswer --> [*]: Grounded (Confidence ≥ Threshold)
-    EvaluateAnswer --> Generate: Hallucination Detected (Max 3 Retries)
+    %% Define Nodes
+    START: START (User Query)
+    Retrieve: retrieve (Fetch from Qdrant)
+    GradeDocs: grade_documents (Hybrid Reranker)
+    WebSearch: web_search (Tavily Fallback)
+    Generate: generate (LLM)
+    Evaluate: evaluate_answer (NLI Groundedness)
+    END: END (Return to User)
+
+    %% Flow Definitions
+    [*] --> START
+    START --> Retrieve
+    
+    %% Optimistic Routing
+    Retrieve --> Generate: High Similarity (>= 0.82)
+    Retrieve --> GradeDocs: Low/Mid Similarity (< 0.82)
+
+    %% Intent & Relevance Routing
+    GradeDocs --> WebSearch: Factual Query + Docs Irrelevant
+    GradeDocs --> Generate: Docs Relevant / Personal Query
+    GradeDocs --> END: End Execution (If explicitly terminated)
+
+    WebSearch --> Generate: Return Web Context
+
+    %% Generation & Hallucination Checking
+    Generate --> Evaluate
+    
+    Evaluate --> Generate: Hallucination Detected (Retry)
+    Evaluate --> END: Grounded Answer (Safe)
+    
+    END --> [*]
 ```
 
 ---
 
-## 🌟 Core Architectural Highlights
+## ðŸŒŸ Core Architectural Highlights
 
 1. **Speculative Retrieval with Similarity-Based Routing:**
    - Routes requests dynamically across specialized models: fast path (`google/gemini-2.0-flash-lite-preview-02-05`), default reasoning (`deepseek/deepseek-v4-flash`), and complex problem solving (`deepseek/deepseek-r1`) via OpenRouter / AICredits.
 2. **Redis Pre-Warmed Vector Cache & Session Memory:**
-   - Features semantic caching that returns instant answers for common FAQs (**Sub-second cached responses via semantic similarity matching**, dropping turnaround from ~1,850ms to ~15–60ms).
+   - Features semantic caching that returns instant answers for common FAQs (**Sub-second cached responses via semantic similarity matching**, dropping turnaround from ~1,850ms to ~15â€“60ms).
    - Manages multi-turn conversation memory with coreference resolution for natural dialogue flow.
 3. **Cohere & FlashRank Hybrid Reranking:**
    - Combines dense (`BAAI/bge-small-en-v1.5`) and sparse (`Qdrant/bm25`) embeddings with automatic reranking via **Cohere ClientV2** or local CPU-only **FlashRank**.
@@ -152,7 +212,7 @@ stateDiagram-v2
 
 ---
 
-## 🌟 Why Scenario B? (Lightweight & Cloud-Ready)
+## ðŸŒŸ Why Scenario B? (Lightweight & Cloud-Ready)
 
 This project is engineered to remove heavy GPU, PyTorch, and Ollama dependencies:
 - **No Multi-GB Downloads:** Leverages API-based LLM inference, eliminating the need to host heavy weights locally.
@@ -161,7 +221,10 @@ This project is engineered to remove heavy GPU, PyTorch, and Ollama dependencies
 
 ---
 
-## ⚡ Quick Start
+<details>
+<summary><b>?? Quick Start (Click to expand)</b></summary>
+
+## âš¡ Quick Start
 
 1. Clone and install:
    ```bash
@@ -181,7 +244,12 @@ This project is engineered to remove heavy GPU, PyTorch, and Ollama dependencies
    docker compose up -d
    ```
 
-## 🚀 How to Run the Project
+</details>
+
+<details>
+<summary><b>?? Detailed Setup: Docker & Local (Click to expand)</b></summary>
+
+## ðŸš€ How to Run the Project
 
 You can run this project in two ways: **Option A (Docker Compose - Easiest)** or **Option B (Local Python Environment)**.
 
@@ -242,9 +310,9 @@ You can run this project in two ways: **Option A (Docker Compose - Easiest)** or
    ```
 
 4. **Access the Application:**
-   - 💬 **Streamlit Chat UI:** Open [http://localhost:8501](http://localhost:8501) in your browser.
-   - ⚡ **FastAPI Backend & Swagger Docs:** Open [http://localhost:8000/docs](http://localhost:8000/docs).
-   - 🗄️ **Qdrant Dashboard:** Open [http://localhost:6333/dashboard](http://localhost:6333/dashboard).
+   - ðŸ’¬ **React Chat UI (Vite + Tailwind + Zustand):** Open [http://localhost:5173](http://localhost:5173) in your browser.
+   - âš¡ **FastAPI Backend & Swagger Docs:** Open [http://localhost:8000/docs](http://localhost:8000/docs).
+   - ðŸ—„ï¸ **Qdrant Dashboard:** Open [http://localhost:6333/dashboard](http://localhost:6333/dashboard).
 
 ---
 
@@ -275,12 +343,14 @@ You can run this project in two ways: **Option A (Docker Compose - Easiest)** or
 5. **Start the Streamlit Frontend UI:**
    In a second terminal (with virtual environment activated):
    ```bash
-   streamlit run ui/app.py
+   cd frontend && npm run dev
    ```
 
 ---
 
-## 📊 Running Benchmarks & Latency Tests
+</details>
+
+## ðŸ“Š Running Benchmarks & Latency Tests
 
 To test the system across all 5 architectural scenarios (cache hits, reranking speedups, speculative dual-path retrieval, and RAGAS evaluation analysis), execute the deep dry run benchmark suite:
 
@@ -294,11 +364,11 @@ docker exec -it $(docker-compose ps -q backend) python benchmark.py
 
 ---
 
-## 🛠️ Makefile Commands
+## ðŸ› ï¸ Makefile Commands
 
 ```bash
 make build       # Build lightweight Docker images
-make up          # Start Qdrant, Redis, Backend API, Arq Worker, and Streamlit UI
+make up          # Start Qdrant, Redis, Backend API, Arq Worker, and React UI
 make ingest      # Ingest documentation into Qdrant inside the container
 make test        # Run pytest test suite inside the container
 make eval        # Run RAGAS evaluation against golden dataset
@@ -309,8 +379,12 @@ make down        # Tear down cluster and free ports
 
 ---
 
-## 🔐 Authentication & Guardrails
+## ðŸ” Authentication & Guardrails
 
 - **JWT Authentication:** Protected endpoints require OAuth2 Bearer Tokens. Authenticate via `/auth/login` (default test accounts: `admin / admin123` and `user / user123`).
 - **Input Guardrails:** Automatically inspects incoming prompts for injection attacks and enforces rate limiting (30 req/min).
 - **Output Guardrails:** Automatically scrubs and redacts Personally Identifiable Information (SSNs, credit card numbers, phone numbers, emails) before delivering answers to the client.
+
+
+
+
