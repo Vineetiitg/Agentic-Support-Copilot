@@ -15,7 +15,6 @@ def reset_qdrant_client():
     from app.core.config import settings
     import app.core.dependencies as deps
     import app.engine.user_memory as user_mem
-    import app.engine.indexer as indexer
     
     # Force memory mode for tests to prevent locks
     settings.QDRANT_LOCATION = ":memory:"
@@ -25,7 +24,6 @@ def reset_qdrant_client():
     
     # Reset collection existence flags
     user_mem._collection_exists = False
-    indexer._collection_exists = False if hasattr(indexer, '_collection_exists') else None
     
     # Initialize collections for tests
     from langchain_core.documents import Document
@@ -33,12 +31,18 @@ def reset_qdrant_client():
     
     # Initialize support_docs collection if needed
     if not any(c.name == settings.COLLECTION_NAME for c in client.get_collections().collections):
-        indexer.index_documents([Document(page_content="Test document", metadata={"doc_id": "test"})])
+        from app.engine.indexer import index_documents
+        index_documents([Document(page_content="Test document", metadata={"doc_id": "test"})])
     
     # Initialize user_profiles collection if needed
     if not any(c.name == "user_profiles" for c in client.get_collections().collections):
-        from app.engine.user_memory import get_profile_store
-        get_profile_store()
+        from langchain_qdrant import QdrantVectorStore
+        QdrantVectorStore.from_documents(
+            [Document(page_content="User profile initialized.", metadata={"user_id": "init"})],
+            embedding=user_mem.dense_embeddings(),
+            collection_name="user_profiles",
+            path=settings.QDRANT_LOCATION,
+        )
     
     yield
     
