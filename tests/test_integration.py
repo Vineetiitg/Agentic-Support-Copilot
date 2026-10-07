@@ -39,12 +39,14 @@ class TestDocumentsEndpoint:
 
 
 class TestChatEndpoint:
+    @patch("app.services.chat_service.retrieve_user_profile", new_callable=AsyncMock, return_value="")
+    @patch("app.services.chat_service.extract_and_save_user_facts", new_callable=AsyncMock)
     @patch("app.routers.chat.check_cache", new_callable=AsyncMock, return_value={"answer": "Test answer", "sources": [{"source": "test.md", "snippet": "test"}], "confidence": 0.95})
     @patch("app.routers.chat.async_enforce_rate_limit", new_callable=AsyncMock)
     @patch("app.engine.memory.get_session_history", new_callable=AsyncMock, return_value=[])
     @patch("app.engine.memory.get_session_summary", new_callable=AsyncMock, return_value="")
     @patch("app.engine.memory.add_session_message", new_callable=AsyncMock)
-    def test_chat_returns_cached_answer(self, mock_add, mock_summary, mock_history, mock_rate, mock_cache, test_client):
+    def test_chat_returns_cached_answer(self, mock_add, mock_summary, mock_history, mock_rate, mock_cache, mock_extract_facts, mock_user_profile, test_client):
         response = test_client.post("/chat", json={"query": "How to reset password?"})
         assert response.status_code == 200
         data = response.json()
