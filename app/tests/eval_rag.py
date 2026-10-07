@@ -134,7 +134,26 @@ async def run_local_evaluation(
             embeddings=embeddings_wrapped,
             run_config=RunConfig(max_workers=4, max_wait=60, max_retries=2),
         )
-        ragas_scores = ragas_result
+        
+        df = ragas_result.to_pandas()
+        
+        # Robustly extract overall scores from the dataframe mean
+        ragas_scores = {}
+        for col in ["answer_relevancy", "faithfulness", "context_precision", "context_recall", "answer_correctness"]:
+            if col in df.columns:
+                val = df[col].mean()
+                if not type(val).__name__ == "NAType":
+                    ragas_scores[col] = float(val)
+        
+        for i, df_row in df.iterrows():
+            if i < len(results):
+                results[i]["ragas_metrics"] = {
+                    "answer_relevancy": df_row.get("answer_relevancy"),
+                    "faithfulness": df_row.get("faithfulness"),
+                    "context_precision": df_row.get("context_precision"),
+                    "context_recall": df_row.get("context_recall"),
+                    "answer_correctness": df_row.get("answer_correctness"),
+                }
     except Exception as e:
         ragas_scores = {"error": str(e)}
 
@@ -172,6 +191,9 @@ async def run_local_evaluation(
 
 def write_report(summary: dict) -> None:
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    
+    ragas_scores = summary.get("ragas_scores", {})
+    
     lines = [
         "# RAG Evaluation Report",
         "",
@@ -183,13 +205,36 @@ def write_report(summary: dict) -> None:
         f"- **Average Latency:** {summary['average_latency_ms']} ms",
         "",
         "### Ragas Scores",
-        "```json",
-        json.dumps(summary.get("ragas_scores", {}), indent=2, default=str),
-        "```",
-        "",
+    ]
+    
+    if isinstance(ragas_scores, dict) and "error" in ragas_scores:
+        lines.extend([
+            "**Evaluation Error:**",
+            "```text",
+            ragas_scores["error"],
+            "```",
+            ""
+        ])
+    else:
+        lines.extend([
+            "| Metric | Score |",
+            "| ------ | ----- |"
+        ])
+        if ragas_scores:
+            for metric, score in ragas_scores.items():
+                if isinstance(score, (float, int)):
+                    lines.append(f"| {metric} | {score:.4f} |")
+                else:
+                    lines.append(f"| {metric} | {score} |")
+        else:
+            lines.append("| N/A | No scores computed |")
+        lines.append("")
+
+    lines.extend([
         "## Question Results",
         "",
-    ]
+    ])
+
     for result in summary["results"]:
         lines.extend(
             [
@@ -198,9 +243,16 @@ def write_report(summary: dict) -> None:
                 f"- Source hit: {result['source_hit']}",
                 f"- Retrieved contexts: {result['retrieved_contexts']}",
                 f"- Latency ms: {result['latency_ms']}",
-                "",
             ]
         )
+        if result.get("ragas_metrics"):
+            lines.append("- **Per-Question Ragas Scores:**")
+            for m, s in result["ragas_metrics"].items():
+                if isinstance(s, (float, int)):
+                    lines.append(f"  - {m}: {s:.4f}")
+                elif s is not None:
+                    lines.append(f"  - {m}: {s}")
+        lines.append("")
     REPORT_PATH.write_text("\n".join(lines), encoding="utf-8")
 
 def generate_synthetic_testset(output_path: Path = Path("datasets/synthetic_qa.json"), test_size: int = 5) -> list[dict]:
