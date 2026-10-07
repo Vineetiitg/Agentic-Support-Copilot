@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { FileText, Trash2, Upload, RefreshCw, Play, Loader2, Activity, User, Bot, Crown, Send } from 'lucide-react'
 import AppLayout from '@/components/layout/AppLayout'
@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
-import { getDocuments, ingestDocuments, uploadFiles, deleteDocument, resetIndex, getEvalReport, runEvaluation, getSessions, getSessionMessages, injectMessage } from '@/api/admin'
+import { getDocuments, ingestDocuments, uploadFiles, deleteDocument, resetIndex, getEvalReport, runEvaluation, getSessions, getSessionMessages, injectMessage, getTaskStatus } from '@/api/admin'
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'sessions' | 'documents' | 'evaluation'>('sessions')
@@ -171,6 +171,9 @@ function DocumentsTab({ toast, queryClient }: { toast: any; queryClient: any }) 
 }
 
 function EvaluationTab({ toast }: { toast: any }) {
+  const queryClient = useQueryClient()
+  const [jobId, setJobId] = useState<string | null>(null)
+
   const { data: evalData, isLoading } = useQuery({
     queryKey: ['eval'],
     queryFn: getEvalReport,
@@ -178,9 +181,38 @@ function EvaluationTab({ toast }: { toast: any }) {
 
   const evalMutation = useMutation({
     mutationFn: runEvaluation,
-    onSuccess: () => toast('Evaluation started', 'success'),
+    onSuccess: (data) => {
+      toast('Evaluation started', 'success')
+      if (data.job_id) {
+        setJobId(data.job_id)
+      }
+    },
     onError: () => toast('Evaluation failed', 'error'),
   })
+
+  const { data: taskData } = useQuery({
+    queryKey: ['task', jobId],
+    queryFn: () => getTaskStatus(jobId!),
+    enabled: !!jobId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      if (status === 'completed' || status === 'failed') return false
+      return 2000
+    },
+  })
+
+  useEffect(() => {
+    if (taskData?.status === 'completed') {
+      toast('Evaluation completed', 'success')
+      queryClient.invalidateQueries({ queryKey: ['eval'] })
+      setJobId(null)
+    } else if (taskData?.status === 'failed') {
+      toast('Evaluation failed: ' + (taskData.error || 'Unknown error'), 'error')
+      setJobId(null)
+    }
+  }, [taskData?.status, taskData?.error, toast, queryClient])
+
+  const isPolling = !!jobId && taskData?.status !== 'completed' && taskData?.status !== 'failed'
 
   return (
     <Card>
@@ -189,17 +221,22 @@ function EvaluationTab({ toast }: { toast: any }) {
           <CardTitle>RAGAS Evaluation</CardTitle>
           <Button
             onClick={() => evalMutation.mutate()}
-            disabled={evalMutation.isPending}
+            disabled={evalMutation.isPending || isPolling}
             size="sm"
           >
-            {evalMutation.isPending ? <Loader2 size={14} className="mr-1 animate-spin" /> : <Play size={14} className="mr-1" />}
-            Run Evaluation
+            {(evalMutation.isPending || isPolling) ? <Loader2 size={14} className="mr-1 animate-spin" /> : <Play size={14} className="mr-1" />}
+            {isPolling ? 'Running...' : 'Run Evaluation'}
           </Button>
         </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
           <p className="text-slate-500">Loading report...</p>
+        ) : isPolling ? (
+          <div className="flex flex-col items-center justify-center py-8">
+            <Loader2 size={32} className="animate-spin text-purple-500 mb-4" />
+            <p className="text-slate-400 mb-2">Evaluation in progress...</p>
+          </div>
         ) : evalData?.report ? (
           <pre className="text-sm text-slate-300 bg-black/20 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap">
             {evalData.report}
