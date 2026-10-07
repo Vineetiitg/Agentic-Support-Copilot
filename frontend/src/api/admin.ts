@@ -38,3 +38,21 @@ export async function runEvaluation() {
   const res = await apiClient.post('/admin/eval')
   return res.data
 }
+
+export async function getSessions() {
+  const res = await apiClient.get('/api/v1/admin/sessions')
+  return res.data.sessions || []
+}
+
+export async function getSessionMessages(userId: string, sessionId: string) {
+  const res = await apiClient.get(`/api/v1/admin/sessions/${userId}/${sessionId}/messages`)
+  return res.data
+}
+
+export async function injectMessage(userId: string, sessionId: string, message: string) {
+  const res = await apiClient.post(`/api/v1/admin/sessions/${userId}/${sessionId}/message`, {
+    message,
+    role: 'supervisor'
+  })
+  return res.data
+}
