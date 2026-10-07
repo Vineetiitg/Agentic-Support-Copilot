@@ -39,8 +39,8 @@ class TestDocumentsEndpoint:
 
 
 class TestChatEndpoint:
-    @patch("app.services.chat_service.retrieve_user_profile", new_callable=AsyncMock, return_value="")
-    @patch("app.services.chat_service.extract_and_save_user_facts", new_callable=AsyncMock)
+    @patch("app.engine.user_memory.retrieve_user_profile", new_callable=AsyncMock, return_value="")
+    @patch("app.engine.user_memory.extract_and_save_user_facts", new_callable=AsyncMock)
     @patch("app.routers.chat.check_cache", new_callable=AsyncMock, return_value={"answer": "Test answer", "sources": [{"source": "test.md", "snippet": "test"}], "confidence": 0.95})
     @patch("app.routers.chat.async_enforce_rate_limit", new_callable=AsyncMock)
     @patch("app.engine.memory.get_session_history", new_callable=AsyncMock, return_value=[])
