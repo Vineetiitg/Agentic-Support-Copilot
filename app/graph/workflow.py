@@ -35,7 +35,10 @@ async def retrieve(state: GraphState):
     question = state["question"]
     chat_history = state.get("chat_history", [])
     run_count = state.get("run_count", 0)
-    documents = await retrieve_documents(question, chat_history)
+    
+    documents = state.get("documents", [])
+    if not documents:
+        documents = await retrieve_documents(question, chat_history)
     max_sim = max([d.metadata.get("similarity_score", 0.0) for d in documents] + [0.0])
     optimistic = max_sim >= 0.82
     if optimistic:

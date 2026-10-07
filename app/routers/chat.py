@@ -52,7 +52,7 @@ async def chat_endpoint(request: ChatRequest, http_request: Request, user: UserC
         sources = final_state.get("sources", [])
         confidence = final_state.get("confidence_score", 0.0)
         
-        if answer and sources:
+        if answer:
             await save_exchange(user.user_id, session_id, request.query, answer, sources, confidence)
     except Exception as e:
         raise CopilotError(str(e), status_code=500)

@@ -41,19 +41,22 @@ async def get_cached_answer(query: str, similarity_threshold: float = 0.92) -> O
         best_sim = 0.0
         best_match = None
         
-        for k in keys[:100]:  # Check up to 100 recent cached items
-            raw = await redis.get(k)
-            if not raw:
-                continue
-            data = json.loads(raw)
-            cached_vec = data.get("embedding")
-            if not cached_vec:
-                continue
-                
-            sim = cosine_similarity(query_vec, cached_vec)
-            if sim > best_sim and sim >= similarity_threshold:
-                best_sim = sim
-                best_match = data
+        # Check up to 100 recent cached items using mget
+        keys_to_check = keys[:100]
+        if keys_to_check:
+            raw_values = await redis.mget(*keys_to_check)
+            for raw in raw_values:
+                if not raw:
+                    continue
+                data = json.loads(raw)
+                cached_vec = data.get("embedding")
+                if not cached_vec:
+                    continue
+                    
+                sim = cosine_similarity(query_vec, cached_vec)
+                if sim > best_sim and sim >= similarity_threshold:
+                    best_sim = sim
+                    best_match = data
                 
         if best_match:
             logger.info(f"Semantic cache HIT (similarity: {best_sim:.4f} >= {similarity_threshold}) for query: '{query}'")
