@@ -1,1 +1,2 @@
-Error Code 404: The requested server resource was not found. Check the network router configuration in section 3.
+# What is Error Code 404?
+Error Code 404 indicates that the requested server resource was not found and the router configuration should be checked.

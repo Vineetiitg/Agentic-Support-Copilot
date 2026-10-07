@@ -4,13 +4,14 @@ What does this support copilot do?,The support copilot answers support questions
 How do I reset my password?,You can reset your password by clicking on the 'Forgot Password' link on the login page and following the instructions sent to your email.,auth_guide.txt
 What is the default rate limit?,The default API rate limit is 100 requests per minute per IP address.,api_docs.md
 How can I contact support?,You can contact support by emailing support@example.com or calling 1-800-555-0199.,contact_info.html
-"How do I change my account email?","To change your email, go to Settings > Account > Email.","product_guide.txt"
-"What file formats are supported for upload?","Supported formats include PDF, DOCX, TXT, HTML, and Markdown.","api_docs.md"
-"Is there a rate limit on the API?","Yes, the API has a rate limit of 30 requests per minute per user.","api_docs.md"
-"How do I contact customer support?","You can reach support through the Help Center, available 24/7.","contact_info.html"
-"What happens when I reset the index?","Resetting the index removes all indexed documents and their embeddings from the vector store.","api_docs.md"
-"How do I authenticate with the API?","Use JWT authentication by sending a POST request to /auth/login with your credentials.","rest_endpoints_guide.md"
-"What is the architecture of the worker system?","The system uses Redis-backed ARQ workers for async task processing including ingestion and evaluation.","redis_worker_architecture.md"
-"Can I upload multiple files at once?","Yes, the /admin/upload endpoint accepts multiple files in a single request.","rest_endpoints_guide.md"
-"What models does the system use?","The system uses a fast model for primary generation and a slow reasoning model for retries.","product_guide.txt"
-"How does the semantic cache work?","The semantic cache stores query embeddings in Redis and returns cached answers for similar queries above a similarity threshold.","redis_worker_architecture.md"
+How do I change my account email?,"To change your email, go to Settings > Account > Email.",product_guide.txt
+What file formats are supported for upload?,"Supported formats include PDF, DOCX, TXT, HTML, and Markdown.",api_docs.md
+Is there a rate limit on the API?,"Yes, the API has a rate limit of 30 requests per minute per user.",api_docs.md
+How do I contact customer support?,"You can reach support through the Help Center, available 24/7.",contact_info.html
+What happens when I reset the index?,Resetting the index removes all indexed documents and their embeddings from the vector store.,api_docs.md
+How do I authenticate with the API?,Use JWT authentication by sending a POST request to /auth/login with your credentials.,rest_endpoints_guide.md
+What is the architecture of the worker system?,The system uses Redis-backed ARQ workers for async task processing including ingestion and evaluation.,redis_worker_architecture.md
+Can I upload multiple files at once?,"Yes, the /admin/upload endpoint accepts multiple files in a single request.",rest_endpoints_guide.md
+What models does the system use?,The system uses a fast model for primary generation and a slow reasoning model for retries.,product_guide.txt
+How does the semantic cache work?,The semantic cache stores query embeddings in Redis and returns cached answers for similar queries above a similarity threshold.,redis_worker_architecture.md
+What is Error Code 404?,Error Code 404 indicates that the requested server resource was not found and the router configuration should be checked.,sample_error.txt

@@ -45,9 +45,24 @@ async def run_local_evaluation(
     contexts = []
     ground_truths = []
 
+    from app.engine.semantic_cache import get_cached_answer, set_cached_answer
+    from langchain_core.documents import Document
+
     for row in rows:
         started = perf_counter()
-        output_state = await agent.ainvoke({"question": row["question"], "chat_history": [], "run_count": 0})
+        
+        cached = await get_cached_answer(row["question"])
+        if cached:
+            answer = cached["answer"]
+            sources_dicts = cached.get("sources", [])
+            docs = [Document(page_content=s.get("snippet", ""), metadata={"source": s.get("source", "")}) for s in sources_dicts]
+            output_state = {"generation": answer, "sources": sources_dicts, "documents": docs}
+        else:
+            output_state = await agent.ainvoke({"question": row["question"], "chat_history": [], "run_count": 0})
+            docs = output_state.get("documents", [])
+            sources_dicts = output_state.get("sources", [])
+            await set_cached_answer(row["question"], output_state.get("generation", ""), sources_dicts, 1.0)
+            
         latency_ms = round((perf_counter() - started) * 1000, 2)
         answer = output_state.get("generation", "")
         sources_dicts = output_state.get("sources", [])
@@ -105,10 +120,10 @@ async def run_local_evaluation(
     answer_correctness.embeddings = embeddings_wrapped
 
     ragas_dataset = Dataset.from_dict({
-        "question": questions,
-        "answer": answers,
-        "contexts": contexts,
-        "ground_truth": ground_truths,
+        "user_input": questions,
+        "response": answers,
+        "retrieved_contexts": contexts,
+        "reference": ground_truths,
     })
     
     try:

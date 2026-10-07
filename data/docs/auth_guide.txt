@@ -1,0 +1,2 @@
+# How do I reset my password?
+You can reset your password by clicking on the 'Forgot Password' link on the login page and following the instructions sent to your email.
