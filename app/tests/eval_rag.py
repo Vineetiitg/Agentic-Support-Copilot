@@ -24,7 +24,9 @@ def load_golden_questions(path: Path = DATASET_PATH) -> list[dict]:
 
 def source_hit(expected_sources: str, sources: list[dict]) -> bool:
     expected = {source.strip() for source in expected_sources.split("|") if source.strip()}
-    actual = {source.get("source") for source in sources}
+    actual = {source.get("source") for source in sources if source and source.get("source")}
+    if not expected:
+        return len(actual) == 0
     return bool(expected & actual)
 
 async def run_local_evaluation(
@@ -35,6 +37,10 @@ async def run_local_evaluation(
     from ragas import evaluate
     from ragas.metrics import answer_relevancy, faithfulness, context_precision, context_recall, answer_correctness
     from ragas.run_config import RunConfig
+
+    # Ensure web search is completely disabled during RAGAS evaluation
+    original_web_search = settings.ENABLE_WEB_SEARCH
+    settings.ENABLE_WEB_SEARCH = False
 
     agent = compile_workflow()
     rows = load_golden_questions()
@@ -51,17 +57,13 @@ async def run_local_evaluation(
     for row in rows:
         started = perf_counter()
         
-        cached = await get_cached_answer(row["question"])
-        if cached:
-            answer = cached["answer"]
-            sources_dicts = cached.get("sources", [])
-            docs = [Document(page_content=s.get("snippet", ""), metadata={"source": s.get("source", "")}) for s in sources_dicts]
-            output_state = {"generation": answer, "sources": sources_dicts, "documents": docs}
-        else:
-            output_state = await agent.ainvoke({"question": row["question"], "chat_history": [], "run_count": 0})
-            docs = output_state.get("documents", [])
-            sources_dicts = output_state.get("sources", [])
-            await set_cached_answer(row["question"], output_state.get("generation", ""), sources_dicts, 1.0)
+        # Bypass semantic cache during evaluation and strictly disable web search
+        output_state = await agent.ainvoke({
+            "question": row["question"],
+            "chat_history": [],
+            "run_count": 0,
+            "enable_web_search": False,
+        })
             
         latency_ms = round((perf_counter() - started) * 1000, 2)
         answer = output_state.get("generation", "")
@@ -187,6 +189,7 @@ async def run_local_evaluation(
                 print(f"❌ CI Quality Gate FAILED: answer_relevancy score {val:.3f} < {assert_relevancy}", file=sys.stderr)
                 sys.exit(1)
 
+    settings.ENABLE_WEB_SEARCH = original_web_search
     return summary
 
 def write_report(summary: dict) -> None:

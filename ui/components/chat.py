@@ -3,7 +3,7 @@ import requests
 import time
 
 def render_chat(api_base: str, headers: dict, session_id: str):
-    col_stop, col_info = st.columns([1, 4])
+    col_stop, col_web, col_info = st.columns([1.2, 1.3, 3])
     with col_stop:
         if st.button("🛑 Stop Generation", key="term_btn_top", use_container_width=True):
             if sid := session_id:
@@ -11,11 +11,13 @@ def render_chat(api_base: str, headers: dict, session_id: str):
                     requests.post(f"{api_base}/api/v1/sessions/{sid}/terminate", json={}, headers=headers, timeout=10)
                     st.toast("🛑 Sent termination signal to active generation!")
                 except requests.RequestException as e:
-                st.error(f"⚠️ Connection error: {e}")
-            except Exception as e:
-                st.error(f"An unexpected error occurred: {str(e)}")
+                    st.error(f"⚠️ Connection error: {e}")
+                except Exception as e:
+                    st.error(f"An unexpected error occurred: {str(e)}")
+    with col_web:
+        web_search_enabled = st.toggle("🌐 Web Search", value=False, key="web_search_toggle", help="Toggle Tavily web search fallback when local docs are insufficient.")
     with col_info:
-        st.caption("💡 Tip: Click **🛑 Stop Generation** anytime during text output to immediately terminate an ongoing chat response.")
+        st.caption("💡 Mode: **" + ("Web Search Fallback Active" if web_search_enabled else "Strict Local Docs Only") + "**")
 
     st.divider()
 
@@ -51,11 +53,16 @@ def render_chat(api_base: str, headers: dict, session_id: str):
                 with st.spinner("Processing..."):
                     response = requests.post(
                         f"{api_base}/chat/stream",
-                    json={"query": user_query, "chat_history": st.session_state.messages[:-1], "session_id": session_id},
-                    headers=headers,
-                    stream=True,
-                    timeout=120,
-                )
+                        json={
+                            "query": user_query,
+                            "chat_history": st.session_state.messages[:-1],
+                            "session_id": session_id,
+                            "enable_web_search": web_search_enabled,
+                        },
+                        headers=headers,
+                        stream=True,
+                        timeout=120,
+                    )
                 response.raise_for_status()
                 
                 placeholder = st.empty()

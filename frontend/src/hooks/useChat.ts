@@ -10,7 +10,7 @@ export function useChat(sessionId: string) {
   const abortRef = useRef<AbortController | null>(null)
   const token = useAuthStore((s) => s.token)
 
-  const sendMessage = useCallback(async (query: string) => {
+  const sendMessage = useCallback(async (query: string, enableWebSearch?: boolean) => {
     // Add user message immediately
     const userMsg: ChatMessage = { role: 'user', content: query }
     setMessages((prev) => [...prev, userMsg])
@@ -29,7 +29,11 @@ export function useChat(sessionId: string) {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ query, session_id: sessionId }),
+        body: JSON.stringify({
+          query,
+          session_id: sessionId,
+          enable_web_search: enableWebSearch ?? false,
+        }),
         signal: abortRef.current.signal,
       })
 

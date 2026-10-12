@@ -4,6 +4,7 @@ class ChatRequest(BaseModel):
     query: str
     chat_history: list[dict] = []
     session_id: str | None = None
+    enable_web_search: bool | None = None
 
 class SourceCitation(BaseModel):
     source: str

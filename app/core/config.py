@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     RETRIEVAL_TOP_K: int = 5
     RERANKER_TOP_N: int = 3
     RERANKER_ENABLED: bool = True
-    MIN_RELEVANCE_SCORE: float = 0.92
+    MIN_RELEVANCE_SCORE: float = 0.40
     MAX_CONTEXT_CHARS: int = 12000
 
     # Chunking Config

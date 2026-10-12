@@ -44,7 +44,15 @@ async def chat_endpoint(request: ChatRequest, http_request: Request, user: UserC
         await save_exchange(user.user_id, session_id, request.query, cached["answer"], cached.get("sources", []), cached.get("confidence", 0.99))
         return ChatResponse(query=request.query, answer=cached["answer"], sources=cached.get("sources", []), confidence=cached.get("confidence", 0.99), session_id=session_id)
 
-    initial_state = {"question": standalone_query, "chat_history": chat_history, "summary": summary, "run_count": 0, "documents": speculative_docs}
+    enable_web_search = request.enable_web_search if request.enable_web_search is not None else settings.ENABLE_WEB_SEARCH
+    initial_state = {
+        "question": standalone_query,
+        "chat_history": chat_history,
+        "summary": summary,
+        "run_count": 0,
+        "documents": speculative_docs,
+        "enable_web_search": enable_web_search,
+    }
     try:
         with timed_stage(metrics, "rag_workflow"):
             final_state = await rag_agent.ainvoke(initial_state)
@@ -89,7 +97,15 @@ async def chat_stream_endpoint(request: ChatRequest, http_request: Request, user
                 yield cached["answer"]
                 return
 
-            initial_state = {"question": standalone_query, "chat_history": chat_history, "summary": summary, "run_count": 0, "documents": speculative_docs}
+            enable_web_search = request.enable_web_search if request.enable_web_search is not None else settings.ENABLE_WEB_SEARCH
+            initial_state = {
+                "question": standalone_query,
+                "chat_history": chat_history,
+                "summary": summary,
+                "run_count": 0,
+                "documents": speculative_docs,
+                "enable_web_search": enable_web_search,
+            }
             documents = []
             sources_text = ""
             grounded_result = "yes"

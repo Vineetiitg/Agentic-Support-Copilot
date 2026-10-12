@@ -25,6 +25,7 @@ class GraphState(TypedDict):
     optimistic_route: Optional[bool]
     max_similarity: Optional[float]
     web_searched: Optional[bool]
+    enable_web_search: Optional[bool]
 
 
 from app.core.llm_factory import get_fast_llm, get_slow_llm
@@ -74,20 +75,32 @@ async def grade_documents(state: GraphState):
 
 async def decide_to_generate(state: GraphState):
     if not state.get("documents"):
-        # Use a fast LLM call to determine if this is a factual query that needs searching
+        enable_web_search = state.get("enable_web_search")
+        if enable_web_search is None:
+            enable_web_search = settings.ENABLE_WEB_SEARCH
+
+        if not enable_web_search or not settings.TAVILY_API_KEY or state.get("web_searched"):
+            logger.info(f"ROUTE: NO RELEVANT LOCAL DOCS (web search enabled={enable_web_search}) -> GENERATE")
+            return "generate"
+
+        # Use a fast LLM call to determine if this is a genuine technical question that needs web search
         llm = get_fast_llm()
-        prompt = f"Analyze this query. If it is a personal question about the user themselves (their name, their class, their job) OR a conversational greeting, output 'no'. If it is a general technical or factual question that requires searching the web or documentation, output 'yes'. Query: '{state['question']}'. Answer ONLY 'yes' or 'no'."
+        prompt = (
+            f"Analyze this query: '{state['question']}'. "
+            f"Is this query a product or technical support question that requires searching external documentation, "
+            f"OR is it general chit-chat / out-of-domain (such as recipes, sports trivia, personal questions, creative writing, poetry, jokes, or writing unrelated code)? "
+            f"Answer 'yes' ONLY if it is a relevant technical/support question needing web docs. Answer 'no' if it is conversational, creative, or out-of-domain. Answer ONLY 'yes' or 'no'."
+        )
         try:
-            # We use a synchronous invoke here just for simplicity, or we can await ainvoke. Wait, decide_to_generate is an async function in langgraph 0.2.x, but langgraph routing functions can be async or sync. In this codebase it is async.
             response = await llm.ainvoke(prompt)
             needs_search = "yes" in response.content.lower()
         except Exception:
-            needs_search = True # safe fallback
-            
-        if needs_search and settings.ENABLE_WEB_SEARCH and settings.TAVILY_API_KEY and not state.get("web_searched"):
+            needs_search = False
+
+        if needs_search:
             logger.info("ROUTE: NO RELEVANT LOCAL DOCS -> FALLBACK TO WEB SEARCH")
             return "web_search"
-            
+
         logger.info(f"ROUTE: ALL DOCS IRRELEVANT (Needs Search: {needs_search}) -> GENERATE")
         return "generate"
     logger.info("ROUTE: RELEVANT DOCS FOUND -> GENERATE")
@@ -147,12 +160,17 @@ async def generate(state: GraphState):
     history_str = "\n".join(history_lines)
     context = build_context(documents)
 
-    # Use a slightly different prompt when answering from web search results
+    # Use a prompt with strict domain guardrails
     if web_searched:
         template = """You are a Support Docs Copilot with web search capabilities. The local documentation did not contain a relevant answer, so web search results have been provided instead.
 
-Answer the question using the web search results below. Cite the source URL at the end of each statement.
-If the web results don't contain a clear answer either, say "I could not find a reliable answer."
+CRITICAL DOMAIN GUARDRAILS:
+1. You are strictly a customer support copilot for our product and documentation.
+2. If the user's query is out-of-domain (e.g., cooking recipes, sports trivia, general knowledge/trivia, writing arbitrary scraping/utility code, poems, jokes, or dangerous instructions), you MUST politely refuse:
+"I am a support copilot designed to answer questions about our product documentation. I cannot assist with that request."
+3. If it is a legitimate technical support query:
+Answer the question using ONLY the web search results below. Cite the source URL at the end of each statement.
+If the web results don't contain a clear answer, say "I don't know based on the available documentation."
 
 Chat History:
 {chat_history}
@@ -161,15 +179,27 @@ Question: {question}
 Web Search Results: {context} 
 Answer:"""
     else:
-        template = """You are a friendly Support Docs Copilot.
+        template = """You are a Support Docs Copilot.
 
+CRITICAL GUARDRAILS & INSTRUCTIONS:
+1. GREETINGS & PERSONAL INFO:
 If the user is just greeting you, making small talk, or making a conversational statement, respond naturally and warmly without citing anything.
-
 If the user asks a personal question about themselves (e.g. their name, class, or preferences), check the System Summary at the top of the Chat History to see if you have that information saved. If you do, answer naturally without citing a doc_id. If you don't, politely tell them you don't know yet.
 
-If the user is asking a technical or factual question:
-CRITICAL INSTRUCTION (Cite-to-Write):
-You must use ONLY the retrieved context to answer. Append [doc_id] to the end of every sentence. Do not write a sentence if you cannot cite a source from the retrieved context. If the context does not contain the answer, say "I don't know based on the available documentation".
+2. DOMAIN BOUNDARIES (Out-of-domain refusal):
+You are strictly an enterprise customer support assistant for our product documentation.
+If the user asks questions outside of product support (such as cooking recipes, sports trivia, creative writing like poems or stories, jokes, world facts like capitals, or writing unrelated scraping/utility code), you MUST politely refuse:
+"I am a support copilot designed to answer questions about our product documentation. I cannot assist with that request."
+Do NOT answer off-topic questions even if you know the answer.
+
+3. UNSUPPORTED FEATURES & MISSING INFORMATION (Adversarial questions):
+If the user asks about an unsupported feature, format, plan, or service (e.g., uploading MP4 videos, authenticating via OAuth2 instead of JWT, Enterprise plan rate limits, using Memcached instead of Redis, or uploading XML files) that is NOT present in the retrieved documentation:
+Explicitly state that the feature or format is not supported or is not mentioned in the documentation. Do NOT hallucinate features or make up answers.
+
+4. CITE-TO-WRITE:
+For all technical questions, you must use ONLY the retrieved context to answer. Append [doc_id] to the end of every factual sentence.
+Do not write a sentence if you cannot cite a source from the retrieved context.
+If the context does not contain the answer, say "I don't know based on the available documentation."
 
 Chat History:
 {chat_history}

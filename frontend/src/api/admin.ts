@@ -56,3 +56,9 @@ export async function injectMessage(userId: string, sessionId: string, message: 
   })
   return res.data
 }
+
+export async function getTaskStatus(jobId: string) {
+  const res = await apiClient.get(`/tasks/status/${jobId}`)
+  return res.data
+}
+
