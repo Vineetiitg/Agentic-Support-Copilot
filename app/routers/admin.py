@@ -7,8 +7,9 @@ from app.core.errors import CopilotError
 from app.core.logging import logger
 from app.engine.document_registry import load_registry
 from app.engine.ingestion import delete_indexed_document, ingest_documents, reset_index
-from app.tests.eval_rag import run_local_evaluation, REPORT_PATH
 from app.models.schemas import IngestionRequest
+
+REPORT_PATH = Path("reports/eval_report.md")
 
 router = APIRouter()
 
@@ -70,6 +71,7 @@ async def post_eval_endpoint(user: UserContext = Depends(resolve_user)):
         return {"status": "ok", "message": "RAGAS evaluation task queued.", "job_id": job.job_id}
     except Exception as e:
         logger.warning(f"Arq enqueue failed ({e}), falling back to synchronous evaluation.")
+        from app.tests.eval_rag import run_local_evaluation
         summary = await run_local_evaluation()
         report_content = REPORT_PATH.read_text(encoding="utf-8") if REPORT_PATH.exists() else "Report generated."
         return {"status": "ok", "summary": summary, "report": report_content}

@@ -39,15 +39,15 @@ class Settings(BaseSettings):
 
     # Retrieval Config
     RETRIEVAL_MODE: str = "dense"
-    RETRIEVAL_TOP_K: int = 5
-    RERANKER_TOP_N: int = 3
+    RETRIEVAL_TOP_K: int = 6
+    RERANKER_TOP_N: int = 5
     RERANKER_ENABLED: bool = True
     MIN_RELEVANCE_SCORE: float = 0.40
     MAX_CONTEXT_CHARS: int = 12000
 
     # Chunking Config
-    CHUNK_SIZE: int = 500
-    CHUNK_OVERLAP: int = 50
+    CHUNK_SIZE: int = 750
+    CHUNK_OVERLAP: int = 100
 
     # Runtime Safety
     ENABLE_GUARDRAILS: bool = True

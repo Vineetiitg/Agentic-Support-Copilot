@@ -89,7 +89,7 @@ def render_chat(api_base: str, headers: dict, session_id: str):
                         if res_msgs and (msgs := res_msgs.get("messages")) and len(msgs) >= len(st.session_state.messages):
                             st.session_state.messages = msgs
                     except requests.RequestException as e:
-                st.error(f"⚠️ Connection error: {e}")
+                        st.error(f"⚠️ Connection error: {e}")
             except Exception as e:
                 st.error(f"An unexpected error occurred: {str(e)}")
                 st.rerun()

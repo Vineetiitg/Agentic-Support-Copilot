@@ -73,7 +73,7 @@ def rerank_with_flashrank(question: str, documents: List[Document], top_k: int) 
         return documents[:top_k]
 
 
-def rerank_documents(question: str, documents: List[Document], top_k: int = 3) -> List[Document]:
+def _rerank_single(query: str, documents: List[Document], top_k: int) -> List[Document]:
     if not documents:
         return documents
 
@@ -88,7 +88,7 @@ def rerank_documents(question: str, documents: List[Document], top_k: int = 3) -
                 doc_texts = [doc.page_content for doc in documents]
                 response = client.rerank(
                     model=settings.RERANKER_MODEL,
-                    query=question,
+                    query=query,
                     documents=doc_texts,
                     top_n=min(top_k, len(documents))
                 )
@@ -106,9 +106,52 @@ def rerank_documents(question: str, documents: List[Document], top_k: int = 3) -
             except Exception as e:
                 logger.warning(f"Cohere API reranking failed ({e}). Attempting seamless fallback to local FlashRank...")
 
-    # 2. Use local FlashRank ONNX reranker (if provider=='flashrank', no Cohere key, or Cohere API fallback)
-    logger.info("Using local FlashRank CPU ONNX reranker.")
-    return rerank_with_flashrank(question, documents, top_k)
+    # 2. Use local FlashRank ONNX reranker
+    return rerank_with_flashrank(query, documents, top_k)
+
+
+def rerank_documents(
+    question: str,
+    documents: List[Document],
+    top_k: int = 3,
+    query_variants: List[str] = None
+) -> List[Document]:
+    if not documents:
+        return documents
+
+    queries = [question]
+    if query_variants:
+        for v in query_variants:
+            if v and v.strip() and v not in queries:
+                queries.append(v.strip())
+
+    if len(queries) <= 1:
+        return _rerank_single(question, documents, top_k)
+
+    # Multi-variant cross-scoring: score documents against each query variant
+    # and assign doc.metadata["relevance_score"] = max(score across queries)
+    scored_docs_map = {}
+    for q in queries:
+        ranked = _rerank_single(q, documents, len(documents))
+        for doc in ranked:
+            doc_id = doc.metadata.get("chunk_id") or doc.page_content[:120]
+            score = float(doc.metadata.get("relevance_score", doc.metadata.get("rerank_score", 0.0)))
+            if doc_id not in scored_docs_map:
+                scored_docs_map[doc_id] = (doc, score)
+            else:
+                existing_doc, existing_score = scored_docs_map[doc_id]
+                scored_docs_map[doc_id] = (existing_doc, max(existing_score, score))
+
+    for doc, best_score in scored_docs_map.values():
+        doc.metadata["relevance_score"] = best_score
+        doc.metadata["rerank_score"] = best_score
+
+    sorted_docs = sorted(
+        [doc for doc, _ in scored_docs_map.values()],
+        key=lambda d: d.metadata.get("relevance_score", 0.0),
+        reverse=True
+    )
+    return sorted_docs[:top_k]
 
 
 def get_nli_model():

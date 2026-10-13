@@ -12,7 +12,7 @@ def get_retriever():
     return qdrant.as_retriever(search_kwargs={"k": settings.RETRIEVAL_TOP_K})
 
 
-async def retrieve_documents(question: str, chat_history: list[dict] = None):
+async def retrieve_documents(question: str, chat_history: list[dict] = None, return_variants: bool = False):
     qdrant = open_vector_store()
     retriever = get_retriever()
     documents = []
@@ -34,9 +34,15 @@ async def retrieve_documents(question: str, chat_history: list[dict] = None):
             documents.append(document)
 
     top_sim = max([d.metadata.get("similarity_score", 0.0) for d in documents] + [0.0])
-    if top_sim >= 0.65 and documents:
-        logger.info(f"Direct retrieval hit high similarity ({top_sim:.4f} >= 0.65). Skipping LLM query expansion!")
-        return documents[: settings.RETRIEVAL_TOP_K]
+    is_multi_topic = any(sep in question.lower() for sep in [" and ", " as well as ", " also ", "? "]) or question.count("?") > 1
+
+    # Only skip query expansion if direct similarity is very high and NOT multi-part
+    if top_sim >= 0.88 and not is_multi_topic and documents:
+        logger.info(f"Direct retrieval hit very high similarity ({top_sim:.4f} >= 0.88). Skipping query expansion.")
+        final_docs = documents[: settings.RETRIEVAL_TOP_K]
+        if return_variants:
+            return final_docs, [question]
+        return final_docs
 
     variants = await query_variants(question, chat_history)
     for query in variants:
@@ -57,13 +63,19 @@ async def retrieve_documents(question: str, chat_history: list[dict] = None):
             seen.add(key)
             document.metadata["similarity_score"] = float(score)
             documents.append(document)
+
     logger.info(
         "retrieval completed query_count=%s returned_chunks=%s reranker_enabled=%s",
         len(variants),
         len(documents),
         settings.RERANKER_ENABLED,
     )
-    return documents[: settings.RETRIEVAL_TOP_K]
+    # Retain up to 12 candidates so cross-encoder reranker can select best across all sub-queries
+    max_candidates = max(settings.RETRIEVAL_TOP_K * 2, 12)
+    final_docs = documents[:max_candidates]
+    if return_variants:
+        return final_docs, variants
+    return final_docs
 
 
 def get_reranked_retriever():

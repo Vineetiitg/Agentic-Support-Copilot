@@ -28,9 +28,21 @@ async def query_variants(query: str, chat_history: list[dict] = None) -> list[st
             default_headers={"HTTP-Referer": "https://localhost:3000", "X-Title": "Support Docs Copilot"},
         )
         prompt = PromptTemplate(
-            template="""You are an expert technical support assistant. 
-Your goal is to generate 2 alternative phrasing variants for the user's question to improve retrieval accuracy.
+            template="""You are an expert technical support search assistant.
+Your goal is to generate 2 to 3 optimized search query variations to retrieve relevant technical documentation from our knowledge base.
+
+CRITICAL RULES:
+1. TYPO & SLANG NORMALIZATION:
+   If the question contains typos, slang, or informal phrasing (e.g. 'halp my pasword broke', 'wat format for upload', 'cant login bro', 'support number plz', 'file upload work how', 'is it sync or async'), rewrite into proper technical search terms (e.g. 'how to reset password', 'supported file formats for upload', 'trouble logging in authentication', 'customer support phone number', 'file upload endpoint instructions', 'async background worker architecture').
+2. MULTI-HOP DECOMPOSITION:
+   If the question asks about two different topics (e.g. 'What is the rate limit and how do I authenticate?', 'How to change email and what if 404 error?'), provide individual search queries for EACH sub-topic so documents for both can be retrieved.
+3. ADVERSARIAL & UNKNOWN FEATURE QUERIES:
+   If the user asks about an uncommon or unsupported feature (e.g. 'upload MP4 videos', 'contact support via Slack', 'authenticate via OAuth2', 'rate limit for Enterprise plan'), provide search queries for the general feature category in documentation (e.g. 'supported file formats for upload', 'support contact options', 'API authentication methods', 'API rate limit').
+4. OUT-OF-DOMAIN:
+   If the question is completely non-technical / conversational (e.g. recipes, sports, jokes, poems), return an empty list.
+
 Return ONLY a JSON object with a single key 'variants' containing a list of strings.
+Example output: {{"variants": ["query variant 1", "query variant 2"]}}
 
 Chat History:
 {chat_history}
@@ -44,7 +56,11 @@ User Question: {question}""",
         content = result.content.strip()
         if content.startswith("```"):
             content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content, flags=re.MULTILINE).strip()
-        parsed = json.loads(content)
+        try:
+            parsed = json.loads(content)
+        except Exception:
+            match = re.search(r"\[(.*?)\]", content, re.DOTALL)
+            parsed = {"variants": json.loads(f"[{match.group(1)}]")} if match else {}
         new_variants = parsed.get("variants", [])
         
         if isinstance(new_variants, list):

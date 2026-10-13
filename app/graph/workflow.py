@@ -26,6 +26,7 @@ class GraphState(TypedDict):
     max_similarity: Optional[float]
     web_searched: Optional[bool]
     enable_web_search: Optional[bool]
+    query_variants: Optional[List[str]]
 
 
 from app.core.llm_factory import get_fast_llm, get_slow_llm
@@ -38,12 +39,13 @@ async def retrieve(state: GraphState):
     run_count = state.get("run_count", 0)
     
     documents = state.get("documents", [])
+    query_variants = state.get("query_variants", [])
     if not documents:
-        documents = await retrieve_documents(question, chat_history)
+        documents, query_variants = await retrieve_documents(question, chat_history, return_variants=True)
     max_sim = max([d.metadata.get("similarity_score", 0.0) for d in documents] + [0.0])
-    optimistic = max_sim >= 0.82
+    optimistic = max_sim >= 0.88 and len(documents) > 0
     if optimistic:
-        logger.info(f"OPTIMISTIC ROUTE TRIGGERED: Top similarity score {max_sim:.4f} >= 0.82")
+        logger.info(f"OPTIMISTIC ROUTE TRIGGERED: Top similarity score {max_sim:.4f} >= 0.88")
     return {
         "documents": documents,
         "sources": source_citations(documents),
@@ -51,6 +53,7 @@ async def retrieve(state: GraphState):
         "run_count": run_count,
         "optimistic_route": optimistic,
         "max_similarity": max_sim,
+        "query_variants": query_variants,
     }
 
 
@@ -58,8 +61,9 @@ async def grade_documents(state: GraphState):
     logger.info("NODE: GRADE DOCUMENT RELEVANCE (VIA HYBRID RERANKER)")
     question = state["question"]
     documents = state.get("documents", [])
+    query_variants = state.get("query_variants", [question])
     
-    reranked_docs = rerank_documents(question, documents, top_k=settings.RERANKER_TOP_N)
+    reranked_docs = rerank_documents(question, documents, top_k=settings.RERANKER_TOP_N, query_variants=query_variants)
     if not reranked_docs:
         return {"documents": []}
         
@@ -188,13 +192,15 @@ If the user asks a personal question about themselves (e.g. their name, class, o
 
 2. DOMAIN BOUNDARIES (Out-of-domain refusal):
 You are strictly an enterprise customer support assistant for our product documentation.
-If the user asks questions outside of product support (such as cooking recipes, sports trivia, creative writing like poems or stories, jokes, world facts like capitals, or writing unrelated scraping/utility code), you MUST politely refuse:
+ONLY refuse if the user's request is genuinely non-technical / non-support (such as cooking recipes, sports trivia, creative writing like poems or stories, jokes, general knowledge trivia like world capitals/weather, weapon making, or writing unrelated web scraping/utility code):
 "I am a support copilot designed to answer questions about our product documentation. I cannot assist with that request."
-Do NOT answer off-topic questions even if you know the answer.
+Do NOT refuse questions related to technical support, IT, errors, accounts, authentication, file uploads, system architecture, or contacting support!
 
 3. UNSUPPORTED FEATURES & MISSING INFORMATION (Adversarial questions):
-If the user asks about an unsupported feature, format, plan, or service (e.g., uploading MP4 videos, authenticating via OAuth2 instead of JWT, Enterprise plan rate limits, using Memcached instead of Redis, or uploading XML files) that is NOT present in the retrieved documentation:
-Explicitly state that the feature or format is not supported or is not mentioned in the documentation. Do NOT hallucinate features or make up answers.
+If the user asks about an unsupported feature, format, plan, channel, or service (e.g., uploading MP4 videos or XML files, authenticating via OAuth2 instead of JWT, Enterprise plan rate limits, using Memcached instead of Redis, contacting support via Slack, or Error Code 500):
+- If the documentation lists supported alternatives, clearly state what IS supported from the documentation and state that the requested feature is not mentioned or not supported.
+- If the documentation does not contain the answer, say "I don't know based on the available documentation." or state that the documentation does not provide information on it.
+Never hallucinate unsupported features.
 
 4. CITE-TO-WRITE:
 For all technical questions, you must use ONLY the retrieved context to answer. Append [doc_id] to the end of every factual sentence.

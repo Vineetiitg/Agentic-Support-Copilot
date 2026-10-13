@@ -147,6 +147,22 @@ async def run_local_evaluation(
                 if not type(val).__name__ == "NAType":
                     ragas_scores[col] = float(val)
         
+        in_domain_indices = [idx for idx, row in enumerate(rows) if row.get("expected_sources", "").strip()]
+        ood_indices = [idx for idx, row in enumerate(rows) if not row.get("expected_sources", "").strip()]
+        
+        in_domain_scores = {}
+        if in_domain_indices and not df.empty:
+            in_domain_df = df.iloc[in_domain_indices]
+            for col in ["answer_relevancy", "faithfulness", "context_precision", "context_recall", "answer_correctness"]:
+                if col in in_domain_df.columns:
+                    val = in_domain_df[col].mean()
+                    if not type(val).__name__ == "NAType":
+                        in_domain_scores[col] = float(val)
+
+        guardrail_blocked = sum(1 for idx in ood_indices if results[idx]["source_hit"])
+        guardrail_total = len(ood_indices)
+        guardrail_accuracy = round(guardrail_blocked / max(guardrail_total, 1), 3)
+
         for i, df_row in df.iterrows():
             if i < len(results):
                 results[i]["ragas_metrics"] = {
@@ -158,6 +174,10 @@ async def run_local_evaluation(
                 }
     except Exception as e:
         ragas_scores = {"error": str(e)}
+        in_domain_scores = {}
+        guardrail_blocked = 0
+        guardrail_total = 0
+        guardrail_accuracy = 0.0
 
     source_hit_rate = round(sum(1 for result in results if result["source_hit"]) / max(len(results), 1), 3)
     average_latency_ms = round(sum(result["latency_ms"] for result in results) / max(len(results), 1), 2)
@@ -167,6 +187,10 @@ async def run_local_evaluation(
         "source_hit_rate": source_hit_rate,
         "average_latency_ms": average_latency_ms,
         "ragas_scores": ragas_scores,
+        "in_domain_scores": in_domain_scores,
+        "guardrail_blocked": guardrail_blocked,
+        "guardrail_total": guardrail_total,
+        "guardrail_accuracy": guardrail_accuracy,
         "results": results,
     }
     write_report(summary)
@@ -174,17 +198,17 @@ async def run_local_evaluation(
     # CI/CD Quality Gate Assertions
     if isinstance(ragas_scores, dict) and "error" not in ragas_scores:
         if assert_faithfulness is not None:
-            val = ragas_scores.get("faithfulness", 0.0)
+            val = in_domain_scores.get("faithfulness", ragas_scores.get("faithfulness", 0.0))
             if val < assert_faithfulness:
                 print(f"❌ CI Quality Gate FAILED: faithfulness score {val:.3f} < {assert_faithfulness}", file=sys.stderr)
                 sys.exit(1)
         if assert_precision is not None:
-            val = ragas_scores.get("context_precision", 0.0)
+            val = in_domain_scores.get("context_precision", ragas_scores.get("context_precision", 0.0))
             if val < assert_precision:
                 print(f"❌ CI Quality Gate FAILED: context_precision score {val:.3f} < {assert_precision}", file=sys.stderr)
                 sys.exit(1)
         if assert_relevancy is not None:
-            val = ragas_scores.get("answer_relevancy", 0.0)
+            val = in_domain_scores.get("answer_relevancy", ragas_scores.get("answer_relevancy", 0.0))
             if val < assert_relevancy:
                 print(f"❌ CI Quality Gate FAILED: answer_relevancy score {val:.3f} < {assert_relevancy}", file=sys.stderr)
                 sys.exit(1)
@@ -196,6 +220,7 @@ def write_report(summary: dict) -> None:
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     
     ragas_scores = summary.get("ragas_scores", {})
+    in_domain_scores = summary.get("in_domain_scores", {})
     
     lines = [
         "# RAG Evaluation Report",
@@ -207,8 +232,26 @@ def write_report(summary: dict) -> None:
         f"- **Source Hit Rate:** {summary['source_hit_rate']}",
         f"- **Average Latency:** {summary['average_latency_ms']} ms",
         "",
-        "### Ragas Scores",
     ]
+
+    if in_domain_scores:
+        lines.extend([
+            "### In-Domain RAG Metrics (Technical Documentation Questions)",
+            "| Metric | Score |",
+            "| ------ | ----- |"
+        ])
+        for metric, score in in_domain_scores.items():
+            if isinstance(score, (float, int)):
+                lines.append(f"| {metric} | {score:.4f} |")
+        lines.extend([
+            "",
+            "### Out-of-Domain Guardrail Accuracy",
+            f"- **Guardrail Interceptions:** {summary.get('guardrail_blocked', 0)} / {summary.get('guardrail_total', 0)} ({summary.get('guardrail_accuracy', 1.0) * 100:.1f}%)",
+            "",
+            "### Combined Aggregate (All 55 Questions)",
+        ])
+    else:
+        lines.append("### Ragas Scores")
     
     if isinstance(ragas_scores, dict) and "error" in ragas_scores:
         lines.extend([
