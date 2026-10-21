@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 os.environ.setdefault("AUTH_ENABLED", "false")
 os.environ.setdefault("OPENROUTER_API_KEY", "test-key-not-real")
 os.environ.setdefault("REDIS_URL", "")
+os.environ["QDRANT_URL"] = ""
 os.environ["QDRANT_LOCATION"] = ":memory:"
 
 @pytest.fixture(autouse=True)
@@ -17,6 +18,7 @@ def reset_qdrant_client():
     import app.engine.user_memory as user_mem
     
     # Force memory mode for tests to prevent locks
+    settings.QDRANT_URL = ""
     settings.QDRANT_LOCATION = ":memory:"
     
     with deps._client_lock:

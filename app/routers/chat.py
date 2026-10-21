@@ -93,8 +93,8 @@ async def chat_stream_endpoint(request: ChatRequest, http_request: Request, user
             cached = await check_cache(standalone_query)
             if cached:
                 log_request_metrics(metrics, route="/chat/stream (cache hit)", sources=len(cached.get("sources", [])), model="semantic_cache")
-                await save_exchange(user.user_id, session_id, request.query, cached["answer"], cached.get("sources", []), cached.get("confidence", 0.99))
                 yield cached["answer"]
+                asyncio.create_task(save_exchange(user.user_id, session_id, request.query, cached["answer"], cached.get("sources", []), cached.get("confidence", 0.99)))
                 return
 
             enable_web_search = request.enable_web_search if request.enable_web_search is not None else settings.ENABLE_WEB_SEARCH
@@ -122,8 +122,8 @@ async def chat_stream_endpoint(request: ChatRequest, http_request: Request, user
                         if await redis.exists(f"session:{session_id}:terminate"):
                             await redis.delete(f"session:{session_id}:terminate")
                             yield "\n\n🛑 **[TERMINATED BY USER: Generation was stopped.]**"
-                            await add_session_message(user.user_id, session_id, "user", request.query)
-                            await add_session_message(user.user_id, session_id, "assistant", streamed_text + "\n\n🛑 [TERMINATED BY USER]", documents or [], 0.0)
+                            asyncio.create_task(add_session_message(user.user_id, session_id, "user", request.query))
+                            asyncio.create_task(add_session_message(user.user_id, session_id, "assistant", streamed_text + "\n\n🛑 [TERMINATED BY USER]", documents or [], 0.0))
                             return
                         chunk = event["data"]["chunk"]
                         if chunk and getattr(chunk, "content", None):
@@ -155,18 +155,18 @@ async def chat_stream_endpoint(request: ChatRequest, http_request: Request, user
                 else:
                     fallback_msg = "I am sorry, I could not generate a response based on the available documentation."
                 yield fallback_msg
-                await save_exchange(user.user_id, session_id, request.query, fallback_msg, [], 0.0)
+                asyncio.create_task(save_exchange(user.user_id, session_id, request.query, fallback_msg, [], 0.0))
                 return
 
             if str(grounded_result).lower() == "no":
                 fallback_msg = "\n\n🚨 **[CANCELLED: This response violated safety guidelines and has been retracted.]**"
                 yield fallback_msg
-                await save_exchange(user.user_id, session_id, request.query, fallback_msg, documents, 0.0)
+                asyncio.create_task(save_exchange(user.user_id, session_id, request.query, fallback_msg, documents, 0.0))
                 return
 
             if has_streamed_tokens and str(grounded_result).lower() != "no":
                 redacted_text = redact_sensitive_data(streamed_text)
-                await save_exchange(user.user_id, session_id, request.query, redacted_text, documents, 0.98)
+                asyncio.create_task(save_exchange(user.user_id, session_id, request.query, redacted_text, documents, 0.98))
                 
             log_request_metrics(metrics, route="/chat/stream", sources=len(documents), model=settings.LLM_MODEL)
         except Exception as exc:

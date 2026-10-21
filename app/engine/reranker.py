@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 _cohere_client = None
 _flashrank_client = None
 _nli_model = None
+_nli_model_initialized = False
 
 
 def get_cohere_client():
@@ -155,16 +156,23 @@ def rerank_documents(
 
 
 def get_nli_model():
-    global _nli_model
-    if _nli_model is None:
-        try:
-            from sentence_transformers import CrossEncoder
-            model_name = getattr(settings, 'NLI_MODEL', 'cross-encoder/nli-deberta-v3-xsmall')
-            logger.info(f'Loading NLI cross-encoder model: {model_name}')
-            _nli_model = CrossEncoder(model_name)
-        except Exception as e:
-            logger.warning(f'Failed to load NLI model ({e}). Groundedness checks will use LLM fallback.')
-            return None
+    global _nli_model, _nli_model_initialized
+    if _nli_model_initialized:
+        return _nli_model
+    _nli_model_initialized = True
+
+    if not getattr(settings, 'ENABLE_NLI_GROUNDEDNESS', False):
+        return None
+
+    try:
+        from sentence_transformers import CrossEncoder
+        model_name = getattr(settings, 'NLI_MODEL', 'cross-encoder/nli-deberta-v3-xsmall')
+        logger.info(f'Loading NLI cross-encoder model: {model_name}')
+        _nli_model = CrossEncoder(model_name)
+    except Exception as e:
+        logger.warning(f'Failed to load NLI model ({e}). Groundedness checks will use lexical fallback.')
+        _nli_model = None
+        return None
     return _nli_model
 
 

@@ -1,5 +1,6 @@
+import asyncio
 import json
-from typing import List, Optional, TypedDict
+from typing import List, Optional, Tuple, TypedDict
 from langchain_core.prompts import PromptTemplate
 from langchain_core.documents import Document
 from langchain_openai import ChatOpenAI
@@ -226,17 +227,64 @@ Answer:"""
     return {"generation": generation.content, "sources": source_citations(documents), "run_count": run_count}
 
 
+async def evaluate_groundedness_llm_judge(context: str, question: str, generation: str) -> Tuple[str, float]:
+    """Evaluate whether generation is grounded in context using Fast LLM-as-a-judge."""
+    judge_prompt = f"""You are an impartial evaluator assessing whether a Customer Support AI response is grounded in the provided documentation context.
+
+Documentation Context:
+{context}
+
+User Question:
+{question}
+
+Generated Response:
+{generation}
+
+Evaluation Criteria:
+1. If the response states that the feature/information is not supported, not mentioned, or says 'I do not know based on the available documentation', it IS grounded (yes).
+2. If the response is conversational (e.g. greeting, clarification), it IS grounded (yes).
+3. If the response makes factual claims:
+   - Answer 'yes' if factual claims are supported or faithful to the context.
+   - Answer 'no' ONLY if the response fabricates unsupported facts, invents non-existent features, or contradicts the context.
+
+Respond in exact JSON format ONLY:
+{{"grounded": "yes" or "no", "confidence": <float between 0.0 and 1.0>, "reason": "<brief explanation>"}}"""
+
+    try:
+        llm = get_fast_llm()
+        res = await asyncio.wait_for(llm.ainvoke(judge_prompt), timeout=10.0)
+        raw_text = res.content.strip()
+        if "```json" in raw_text:
+            raw_text = raw_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in raw_text:
+            raw_text = raw_text.split("```")[1].split("```")[0].strip()
+
+        data = json.loads(raw_text)
+        grade = str(data.get("grounded", "yes")).strip().lower()
+        confidence = float(data.get("confidence", 0.95))
+        reason = data.get("reason", "")
+        logger.info(f"LLM-as-a-Judge groundedness: grade={grade}, confidence={confidence:.2f}, reason={reason}")
+        return ("no" if grade == "no" else "yes", confidence)
+    except Exception as exc:
+        logger.warning(f"LLM-as-a-judge check failed or timed out ({exc}), falling back to lexical check.")
+        return evaluate_nli_groundedness(context, generation)
+
+
 async def evaluate_answer(state: GraphState):
-    logger.info("NODE: EVALUATE ANSWER")
+    logger.info("NODE: EVALUATE ANSWER (VIA LLM-AS-A-JUDGE)")
     documents = state["documents"]
     generation = state["generation"]
+    question = state.get("question", "")
     
     # Skip hallucination checks for conversational queries with no docs
     if not documents:
         return {"grounded": "yes", "confidence_score": 0.99}
         
     context = build_context(documents)
-    grade, confidence = evaluate_nli_groundedness(context, generation)
+    if getattr(settings, "ENABLE_LLM_JUDGE", True):
+        grade, confidence = await evaluate_groundedness_llm_judge(context, question, generation)
+    else:
+        grade, confidence = evaluate_nli_groundedness(context, generation)
         
     return {"grounded": grade, "confidence_score": confidence}
 

@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     # Runtime Safety
     ENABLE_GUARDRAILS: bool = True
     ENABLE_RAG_EVAL: bool = False
+    ENABLE_LLM_JUDGE: bool = True
+    ENABLE_NLI_GROUNDEDNESS: bool = False
+    NLI_MODEL: str = "cross-encoder/nli-deberta-v3-xsmall"
     MAX_QUERY_LENGTH: int = 2000
     RATE_LIMIT_PER_MINUTE: int = 30
     
