@@ -1,0 +1,25 @@
+# Global Options
+{
+    admin off
+}
+
+# Site block: Uses DOMAIN environment variable passed from docker-compose
+# When set to a public domain (e.g. copilot.duckdns.org or yourdomain.com),
+# Caddy automatically provisions and auto-renews free Let's Encrypt / ZeroSSL HTTPS certificates.
+# Defaults to localhost via docker-compose (DOMAIN=${DOMAIN:-localhost}).
+{$DOMAIN} {
+    reverse_proxy frontend:80 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    encode gzip zstd
+
+    log {
+        output stdout
+        format console
+    }
+}
+
