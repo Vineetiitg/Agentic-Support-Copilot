@@ -1,3 +1,4 @@
+import re
 import argparse
 import asyncio
 import csv
@@ -30,6 +31,7 @@ def source_hit(expected_sources: str, sources: list[dict]) -> bool:
     return bool(expected & actual)
 
 async def run_local_evaluation(
+    dataset_path: Path = DATASET_PATH,
     assert_faithfulness: float = None,
     assert_precision: float = None,
     assert_relevancy: float = None,
@@ -43,7 +45,7 @@ async def run_local_evaluation(
     settings.ENABLE_WEB_SEARCH = False
 
     agent = compile_workflow()
-    rows = load_golden_questions()
+    rows = load_golden_questions(dataset_path)
     results = []
     
     questions = []
@@ -70,8 +72,10 @@ async def run_local_evaluation(
         sources_dicts = output_state.get("sources", [])
         docs = output_state.get("documents", [])
         
+        # Strip [doc_id: ...] citation tags so RAGAS compares pure answer content against ground truth
+        clean_answer = re.sub(r"\s*\[doc_id[^\]]*\]", "", answer).strip()
         questions.append(row["question"])
-        answers.append(answer)
+        answers.append(clean_answer)
         contexts.append([doc.page_content for doc in docs])
         ground_truths.append(row["expected_answer"])
         
@@ -121,11 +125,17 @@ async def run_local_evaluation(
     context_recall.embeddings = embeddings_wrapped
     answer_correctness.embeddings = embeddings_wrapped
 
+    in_domain_indices = [idx for idx, row in enumerate(rows) if row.get("expected_sources", "").strip()]
+    ood_indices = [idx for idx, row in enumerate(rows) if not row.get("expected_sources", "").strip()]
+
+    # If all or some rows are in-domain, evaluate in-domain rows with RAGAS
+    eval_indices = in_domain_indices if in_domain_indices else list(range(len(rows)))
+    
     ragas_dataset = Dataset.from_dict({
-        "user_input": questions,
-        "response": answers,
-        "retrieved_contexts": contexts,
-        "reference": ground_truths,
+        "user_input": [questions[i] for i in eval_indices],
+        "response": [answers[i] for i in eval_indices],
+        "retrieved_contexts": [contexts[i] for i in eval_indices],
+        "reference": [ground_truths[i] for i in eval_indices],
     })
     
     try:
@@ -139,7 +149,6 @@ async def run_local_evaluation(
         
         df = ragas_result.to_pandas()
         
-        # Robustly extract overall scores from the dataframe mean
         ragas_scores = {}
         for col in ["answer_relevancy", "faithfulness", "context_precision", "context_recall", "answer_correctness"]:
             if col in df.columns:
@@ -147,25 +156,16 @@ async def run_local_evaluation(
                 if not type(val).__name__ == "NAType":
                     ragas_scores[col] = float(val)
         
-        in_domain_indices = [idx for idx, row in enumerate(rows) if row.get("expected_sources", "").strip()]
-        ood_indices = [idx for idx, row in enumerate(rows) if not row.get("expected_sources", "").strip()]
-        
-        in_domain_scores = {}
-        if in_domain_indices and not df.empty:
-            in_domain_df = df.iloc[in_domain_indices]
-            for col in ["answer_relevancy", "faithfulness", "context_precision", "context_recall", "answer_correctness"]:
-                if col in in_domain_df.columns:
-                    val = in_domain_df[col].mean()
-                    if not type(val).__name__ == "NAType":
-                        in_domain_scores[col] = float(val)
+        in_domain_scores = dict(ragas_scores)
 
         guardrail_blocked = sum(1 for idx in ood_indices if results[idx]["source_hit"])
         guardrail_total = len(ood_indices)
-        guardrail_accuracy = round(guardrail_blocked / max(guardrail_total, 1), 3)
+        guardrail_accuracy = round(guardrail_blocked / max(guardrail_total, 1), 3) if guardrail_total > 0 else 1.0
 
-        for i, df_row in df.iterrows():
-            if i < len(results):
-                results[i]["ragas_metrics"] = {
+        for row_pos, orig_idx in enumerate(eval_indices):
+            if row_pos < len(df) and orig_idx < len(results):
+                df_row = df.iloc[row_pos]
+                results[orig_idx]["ragas_metrics"] = {
                     "answer_relevancy": df_row.get("answer_relevancy"),
                     "faithfulness": df_row.get("faithfulness"),
                     "context_precision": df_row.get("context_precision"),
@@ -326,6 +326,7 @@ def generate_synthetic_testset(output_path: Path = Path("datasets/synthetic_qa.j
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Support Docs Copilot RAG Evaluation Suite")
+    parser.add_argument("--dataset", type=Path, default=DATASET_PATH, help="Path to golden QA dataset CSV")
     parser.add_argument("--generate-testset", action="store_true", help="Generate synthetic QA testset from documentation")
     parser.add_argument("--test-size", type=int, default=5, help="Number of synthetic QA pairs to generate")
     parser.add_argument("--assert-faithfulness", type=float, default=None, help="Minimum required faithfulness score")
@@ -336,8 +337,9 @@ if __name__ == "__main__":
     if args.generate_testset:
         generate_synthetic_testset(test_size=args.test_size)
     else:
-        print("Running evaluation...")
+        print(f"Running evaluation on {args.dataset}...")
         summary = asyncio.run(run_local_evaluation(
+            dataset_path=args.dataset,
             assert_faithfulness=args.assert_faithfulness,
             assert_precision=args.assert_precision,
             assert_relevancy=args.assert_relevancy,

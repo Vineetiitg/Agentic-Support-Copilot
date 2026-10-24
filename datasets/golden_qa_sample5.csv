@@ -1,0 +1,7 @@
+question,expected_answer,expected_sources
+How do I reset my password?,You can reset your password by clicking on the 'Forgot Password' link on the login page and following the instructions sent to your email.,auth_guide.txt
+cant login bro,You can reset your password by clicking on the 'Forgot Password' link on the login page.,auth_guide.txt
+How do I upload MP4 videos?,"The system does not support MP4 video uploads. Supported formats are PDF, DOCX, TXT, HTML, and Markdown.",api_docs.md
+Does the system use RabbitMQ for background tasks?,"No, the system uses Redis-backed ARQ workers for async task processing, not RabbitMQ.",redis_worker_architecture.md
+"If I upload a file, what formats are supported and how does the system process it in the background?","Supported upload formats are PDF, DOCX, TXT, HTML, and Markdown. Background processing (like ingestion) is handled asynchronously by Redis-backed ARQ workers.",api_docs.md|redis_worker_architecture.md
+

@@ -33,9 +33,9 @@ Your goal is to generate 2 to 3 optimized search query variations to retrieve re
 
 CRITICAL RULES:
 1. TYPO & SLANG NORMALIZATION:
-   If the question contains typos, slang, or informal phrasing (e.g. 'halp my pasword broke', 'wat format for upload', 'cant login bro', 'support number plz', 'file upload work how', 'is it sync or async'), rewrite into proper technical search terms (e.g. 'how to reset password', 'supported file formats for upload', 'trouble logging in authentication', 'customer support phone number', 'file upload endpoint instructions', 'async background worker architecture').
+   If the question contains typos, slang, or informal phrasing (e.g. 'halp my pasword broke', 'wat format for upload', 'cant login bro', 'support number plz', 'file upload work how', 'is it sync or async'), rewrite into proper technical search terms (e.g. 'how to reset password', 'supported file formats for upload', 'how to reset password unable to login', 'customer support phone number', 'file upload endpoint instructions', 'async background worker architecture').
 2. MULTI-HOP DECOMPOSITION:
-   If the question asks about two different topics (e.g. 'What is the rate limit and how do I authenticate?', 'How to change email and what if 404 error?'), provide individual search queries for EACH sub-topic so documents for both can be retrieved.
+   If the question asks about two different topics (e.g. 'What is the rate limit and how do I authenticate?', 'How to change email and what if 404 error?', 'If I upload a file, what formats are supported and how does the system process it in the background?'), decompose into individual search queries for EACH sub-topic (e.g. ['supported file formats for upload', 'async task processing background worker architecture']). Use canonical technical terms like 'async task processing' or 'workers' for background jobs.
 3. ADVERSARIAL & UNKNOWN FEATURE QUERIES:
    If the user asks about an uncommon or unsupported feature (e.g. 'upload MP4 videos', 'contact support via Slack', 'authenticate via OAuth2', 'rate limit for Enterprise plan'), provide search queries for the general feature category in documentation (e.g. 'supported file formats for upload', 'support contact options', 'API authentication methods', 'API rate limit').
 4. OUT-OF-DOMAIN:

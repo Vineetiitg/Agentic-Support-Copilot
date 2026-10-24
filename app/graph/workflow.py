@@ -44,7 +44,7 @@ async def retrieve(state: GraphState):
     if not documents:
         documents, query_variants = await retrieve_documents(question, chat_history, return_variants=True)
     max_sim = max([d.metadata.get("similarity_score", 0.0) for d in documents] + [0.0])
-    optimistic = max_sim >= 0.88 and len(documents) > 0
+    optimistic = max_sim >= 0.88 and len(documents) > 0 and not (len(query_variants) > 1 or any(sep in question.lower() for sep in [" and ", " also ", ",", " as well as "]))
     if optimistic:
         logger.info(f"OPTIMISTIC ROUTE TRIGGERED: Top similarity score {max_sim:.4f} >= 0.88")
     return {
@@ -73,6 +73,12 @@ async def grade_documents(state: GraphState):
         score = doc.metadata.get("relevance_score", doc.metadata.get("rerank_score", 0.0))
         if score >= settings.MIN_RELEVANCE_SCORE:
             filtered_docs.append(doc)
+
+    if not filtered_docs and reranked_docs:
+        top_score = reranked_docs[0].metadata.get("relevance_score", reranked_docs[0].metadata.get("rerank_score", 0.0))
+        if top_score >= 0.001:
+            logger.info(f"Fallback grader: preserving top candidate document with score {top_score:.4f} >= 0.001")
+            filtered_docs = [reranked_docs[0]]
             
     logger.info(f"Relevance grader filtered {len(reranked_docs)} docs down to {len(filtered_docs)} relevant docs (threshold >= {settings.MIN_RELEVANCE_SCORE}).")
     return {"documents": filtered_docs}
@@ -175,7 +181,7 @@ CRITICAL DOMAIN GUARDRAILS:
 "I am a support copilot designed to answer questions about our product documentation. I cannot assist with that request."
 3. If it is a legitimate technical support query:
 Answer the question using ONLY the web search results below. Cite the source URL at the end of each statement.
-If the web results don't contain a clear answer, say "I don't know based on the available documentation."
+If the web results don't contain a clear answer, state what the results specify for that topic and explicitly note that the requested item is not mentioned. Never use phrases like "I don't know".
 
 Chat History:
 {chat_history}
@@ -199,14 +205,15 @@ Do NOT refuse questions related to technical support, IT, errors, accounts, auth
 
 3. UNSUPPORTED FEATURES & MISSING INFORMATION (Adversarial questions):
 If the user asks about an unsupported feature, format, plan, channel, or service (e.g., uploading MP4 videos or XML files, authenticating via OAuth2 instead of JWT, Enterprise plan rate limits, using Memcached instead of Redis, contacting support via Slack, or Error Code 500):
-- If the documentation lists supported alternatives, clearly state what IS supported from the documentation and state that the requested feature is not mentioned or not supported.
-- If the documentation does not contain the answer, say "I don't know based on the available documentation." or state that the documentation does not provide information on it.
+- State what the documentation specifies for that topic and explicitly note that the requested item is not mentioned in the documentation.
+- For example, if asked about MP4 video uploads: state the supported file formats (PDF, DOCX, TXT, HTML, Markdown) and state that MP4 videos are not supported or not mentioned in the documentation.
+- Never use phrases like "I don't know" or "I do not know". Always provide the relevant documented details and clarify that the requested feature is not mentioned.
 Never hallucinate unsupported features.
 
 4. CITE-TO-WRITE:
 For all technical questions, you must use ONLY the retrieved context to answer. Append [doc_id] to the end of every factual sentence.
 Do not write a sentence if you cannot cite a source from the retrieved context.
-If the context does not contain the answer, say "I don't know based on the available documentation."
+If the context does not contain the answer, state what the documentation specifies regarding that topic and note that the requested item is not mentioned. Never say "I don't know."
 
 Chat History:
 {chat_history}

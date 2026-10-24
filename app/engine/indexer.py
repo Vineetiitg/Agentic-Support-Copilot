@@ -115,27 +115,44 @@ def open_vector_store(validate_collection_config: bool = True) -> QdrantVectorSt
 
 
 def index_documents(documents, force_recreate: bool = False) -> None:
-    if force_recreate or not collection_exists():
-        mode = retrieval_mode()
-        url_or_path_kwarg = {"url": settings.QDRANT_URL} if settings.QDRANT_URL else {"path": settings.QDRANT_LOCATION}
-        QdrantVectorStore.from_documents(
-            documents,
-            embedding=dense_embeddings(),
-            sparse_embedding=sparse_embeddings() if mode != RetrievalMode.DENSE else None,
-            collection_name=settings.COLLECTION_NAME,
-            retrieval_mode=mode,
-            force_recreate=force_recreate,
-            **url_or_path_kwarg,
-        )
-        return
+    client = get_qdrant_client()
+    if force_recreate and collection_exists():
+        client.delete_collection(settings.COLLECTION_NAME)
 
-    store = open_vector_store()
-    store.add_documents(documents)
+    if not collection_exists():
+        mode = retrieval_mode()
+        dense_dim = 384
+        try:
+            sample_vec = dense_embeddings().embed_query("test")
+            dense_dim = len(sample_vec)
+        except Exception:
+            dense_dim = 384
+        vectors_config = models.VectorParams(size=dense_dim, distance=models.Distance.COSINE)
+        sparse_config = None
+        if mode in (RetrievalMode.SPARSE, RetrievalMode.HYBRID):
+            sparse_config = {"sparse": models.SparseVectorParams()}
+        client.create_collection(
+            collection_name=settings.COLLECTION_NAME,
+            vectors_config=vectors_config,
+            sparse_vectors_config=sparse_config,
+        )
+
+    mode = retrieval_mode()
+    store = QdrantVectorStore(
+        client=client,
+        collection_name=settings.COLLECTION_NAME,
+        embedding=dense_embeddings(),
+        sparse_embedding=sparse_embeddings() if mode != RetrievalMode.DENSE else None,
+        retrieval_mode=mode,
+        validate_collection_config=False,
+    )
+    if documents:
+        store.add_documents(documents)
 
 
 def reset_collection() -> None:
-    client = get_qdrant_client()
     if collection_exists():
+        client = get_qdrant_client()
         client.delete_collection(settings.COLLECTION_NAME)
 
 

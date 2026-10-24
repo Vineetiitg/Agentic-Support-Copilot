@@ -1,3 +1,4 @@
+import time
 import logging
 from typing import List, Tuple
 from langchain_core.documents import Document
@@ -7,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 _cohere_client = None
 _flashrank_client = None
+_cohere_rate_limit_until = 0.0
 _nli_model = None
 _nli_model_initialized = False
 
@@ -58,12 +60,15 @@ def rerank_with_flashrank(question: str, documents: List[Document], top_k: int) 
         request = RerankRequest(query=question, passages=passages)
         results = client.rerank(request)[:min(top_k, len(documents))]
         
+        max_score = max([float(r["score"]) for r in results] + [0.0])
         reranked = []
         for r in results:
             idx = int(r["id"])
             doc = documents[idx]
-            doc.metadata["rerank_score"] = float(r["score"])
-            doc.metadata["relevance_score"] = float(r["score"])
+            raw_score = float(r["score"])
+            norm_score = (raw_score / max_score) if max_score > 1e-8 else raw_score
+            doc.metadata["rerank_score"] = float(norm_score)
+            doc.metadata["relevance_score"] = float(norm_score)
             reranked.append(doc)
             
         highest_score = reranked[0].metadata["rerank_score"] if reranked else 0.0
@@ -82,7 +87,8 @@ def _rerank_single(query: str, documents: List[Document], top_k: int) -> List[Do
     has_cohere_key = bool(settings.COHERE_API_KEY and settings.COHERE_API_KEY.strip() != "" and "your_cohere" not in settings.COHERE_API_KEY)
 
     # 1. Try Cohere API if explicitly selected or if 'auto' with a valid API key
-    if provider == "cohere" or (provider == "auto" and has_cohere_key):
+    global _cohere_rate_limit_until
+    if (provider == "cohere" or (provider == "auto" and has_cohere_key)) and time.time() > _cohere_rate_limit_until:
         client = get_cohere_client()
         if client:
             try:
@@ -105,7 +111,12 @@ def _rerank_single(query: str, documents: List[Document], top_k: int) -> List[Do
                 logger.info(f"Cohere API Reranked {len(documents)} docs down to top-{len(reranked)} (highest score: {highest_score:.4f})")
                 return reranked
             except Exception as e:
-                logger.warning(f"Cohere API reranking failed ({e}). Attempting seamless fallback to local FlashRank...")
+                err_str = str(e).lower()
+                if "429" in err_str or "too many requests" in err_str or "rate limit" in err_str:
+                    logger.warning("Cohere trial rate limit (429) hit. Backing off for 60s and using local FlashRank.")
+                    _cohere_rate_limit_until = time.time() + 60.0
+                else:
+                    logger.warning(f"Cohere API reranking failed ({e}). Attempting seamless fallback to local FlashRank...")
 
     # 2. Use local FlashRank ONNX reranker
     return rerank_with_flashrank(query, documents, top_k)
