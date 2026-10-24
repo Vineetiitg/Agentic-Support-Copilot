@@ -299,7 +299,15 @@ def write_report(summary: dict) -> None:
                 elif s is not None:
                     lines.append(f"  - {m}: {s}")
         lines.append("")
-    REPORT_PATH.write_text("\n".join(lines), encoding="utf-8")
+    report_text = "\n".join(lines)
+    REPORT_PATH.write_text(report_text, encoding="utf-8")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    backup_path = REPORT_PATH.parent / f"eval_report_{timestamp}.md"
+    try:
+        backup_path.write_text(report_text, encoding="utf-8")
+        print(f"Permanent backup saved at: {backup_path}")
+    except Exception:
+        pass
 
 def generate_synthetic_testset(output_path: Path = Path("datasets/synthetic_qa.json"), test_size: int = 5) -> list[dict]:
     from ragas.testset.generator import TestsetGenerator
@@ -344,4 +352,16 @@ if __name__ == "__main__":
             assert_precision=args.assert_precision,
             assert_relevancy=args.assert_relevancy,
         ))
+        print("\n" + "=" * 60)
+        print(f"EVALUATION COMPLETED: {summary['questions']} Questions Evaluated")
+        print(f"Source Hit Rate: {summary['source_hit_rate']}")
+        print(f"Average Latency: {summary['average_latency_ms']} ms")
+        if summary.get("in_domain_scores"):
+            print("-" * 60)
+            print("In-Domain RAG Metrics (RAGAS):")
+            for m, s in summary["in_domain_scores"].items():
+                print(f"  {m:20s}: {s:.4f}")
+        if summary.get("guardrail_total", 0) > 0:
+            print(f"Guardrail Interceptions: {summary.get('guardrail_blocked', 0)} / {summary.get('guardrail_total', 0)} ({summary.get('guardrail_accuracy', 1.0) * 100:.1f} percent)")
+        print("=" * 60 + "\n")
         print("Evaluation report generated at:", REPORT_PATH)

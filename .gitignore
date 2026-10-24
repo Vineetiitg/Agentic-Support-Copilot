@@ -19,6 +19,7 @@ fastembed_cache/
 .cache/
 reports/*.html
 reports/*.json
+reports/*.md
 data/document_registry.json
 
 # IDE and Agent metadata
