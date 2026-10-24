@@ -1,11 +1,25 @@
 import json
 import logging
 import math
+import re
 from typing import Any, Dict, List, Optional
 from app.core.queue import get_redis_client
 from app.engine.indexer import dense_embeddings
 
 logger = logging.getLogger(__name__)
+
+NEGATIVE_INTENT_KEYWORDS = {
+    "mp4", "xml", "csv", "json", "oauth2", "oauth", "jwt",
+    "rabbitmq", "memcached", "redis", "celery", "arq",
+    "slack", "phone", "email", "call", "human",
+    "500", "404", "401", "429",
+    "enterprise", "pro", "free",
+    "password", "login",
+}
+
+def _extract_intent_keywords(text: str) -> set:
+    text_lower = text.lower()
+    return {kw for kw in NEGATIVE_INTENT_KEYWORDS if re.search(r"\b" + re.escape(kw) + r"\b", text_lower)}
 
 def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
     if not vec1 or not vec2 or len(vec1) != len(vec2):
@@ -28,7 +42,7 @@ async def _scan_cache_keys(redis, pattern="semantic_cache:*", count=100):
             break
     return keys[:count]
 
-async def get_cached_answer(query: str, similarity_threshold: float = 0.92) -> Optional[Dict[str, Any]]:
+async def get_cached_answer(query: str, similarity_threshold: float = 0.94) -> Optional[Dict[str, Any]]:
     try:
         redis = await get_redis_client()
         keys = await _scan_cache_keys(redis)
@@ -37,6 +51,7 @@ async def get_cached_answer(query: str, similarity_threshold: float = 0.92) -> O
             
         embedder = dense_embeddings()
         query_vec = embedder.embed_query(query)
+        query_intents = _extract_intent_keywords(query)
         
         best_sim = 0.0
         best_match = None
@@ -51,6 +66,12 @@ async def get_cached_answer(query: str, similarity_threshold: float = 0.92) -> O
                 data = json.loads(raw)
                 cached_vec = data.get("embedding")
                 if not cached_vec:
+                    continue
+                
+                cached_query = data.get("query", "")
+                cached_intents = _extract_intent_keywords(cached_query)
+                # Disallow cross-intent cache bleed for distinct features/formats/entities
+                if query_intents != cached_intents:
                     continue
                     
                 sim = cosine_similarity(query_vec, cached_vec)

@@ -11,7 +11,7 @@ def build_context(documents: list[Document]) -> str:
         page = document.metadata.get("page")
         label = f"{source}, page {page}" if page else source
         content = document.page_content.strip()
-        block = f"Source: {label}\n{content}"
+        block = f"--- CONTEXT [doc_id: {source}] (Source: {label}) ---\n{content}"
         if total_chars + len(block) > settings.MAX_CONTEXT_CHARS:
             break
         parts.append(block)

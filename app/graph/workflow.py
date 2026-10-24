@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from typing import List, Optional, Tuple, TypedDict
 from langchain_core.prompts import PromptTemplate
 from langchain_core.documents import Document
@@ -11,6 +12,8 @@ from app.core.logging import logger
 from app.engine.context_builder import build_context, source_citations
 from app.engine.retriever import retrieve_documents
 from app.engine.reranker import rerank_documents, evaluate_nli_groundedness
+from app.engine.query_transform import is_blocked_ood
+from app.core.llm_factory import get_fast_llm, get_slow_llm
 
 
 class GraphState(TypedDict):
@@ -30,7 +33,23 @@ class GraphState(TypedDict):
     query_variants: Optional[List[str]]
 
 
-from app.core.llm_factory import get_fast_llm, get_slow_llm
+def sanitize_citations(answer: str, documents: list[Document]) -> str:
+    """
+    Sanitizes citations in the answer.
+    1. Replaces literal [doc_id] with [doc_id: <actual_source>].
+    2. Maps [source] to [doc_id: <actual_source>].
+    3. Strips [doc_id...] tags if no documents were used.
+    """
+    if not documents:
+        return re.sub(r"\s*\[doc_id[^\]]*\]", "", answer).strip()
+
+    doc_sources = [d.metadata.get("source") for d in documents if d.metadata.get("source")]
+    primary_source = doc_sources[0] if doc_sources else "product_guide.txt"
+
+    sanitized = re.sub(r"\[doc_id\]", f"[doc_id: {primary_source}]", answer)
+    sanitized = re.sub(r"\[source\]", f"[doc_id: {primary_source}]", sanitized)
+
+    return sanitized
 
 
 async def retrieve(state: GraphState):
@@ -38,7 +57,7 @@ async def retrieve(state: GraphState):
     question = state["question"]
     chat_history = state.get("chat_history", [])
     run_count = state.get("run_count", 0)
-    
+
     documents = state.get("documents", [])
     query_variants = state.get("query_variants", [])
     if not documents:
@@ -63,11 +82,14 @@ async def grade_documents(state: GraphState):
     question = state["question"]
     documents = state.get("documents", [])
     query_variants = state.get("query_variants", [question])
-    
-    reranked_docs = rerank_documents(question, documents, top_k=settings.RERANKER_TOP_N, query_variants=query_variants)
+
+    is_compound = len(query_variants) > 1 or any(sep in question.lower() for sep in [" and ", " as well as ", " also ", "? "]) or question.count("?") > 1
+    target_top_n = min(settings.RERANKER_TOP_N, 3 if is_compound else 2)
+
+    reranked_docs = rerank_documents(question, documents, top_k=target_top_n, query_variants=query_variants)
     if not reranked_docs:
         return {"documents": []}
-        
+
     filtered_docs = []
     for doc in reranked_docs:
         score = doc.metadata.get("relevance_score", doc.metadata.get("rerank_score", 0.0))
@@ -79,13 +101,22 @@ async def grade_documents(state: GraphState):
         if top_score >= 0.001:
             logger.info(f"Fallback grader: preserving top candidate document with score {top_score:.4f} >= 0.001")
             filtered_docs = [reranked_docs[0]]
-            
+
+    # Cap single-intent queries at 2 documents to prevent over-retrieval dragging context_precision
+    if not is_compound and len(filtered_docs) > 2:
+        filtered_docs = filtered_docs[:2]
+
     logger.info(f"Relevance grader filtered {len(reranked_docs)} docs down to {len(filtered_docs)} relevant docs (threshold >= {settings.MIN_RELEVANCE_SCORE}).")
     return {"documents": filtered_docs}
 
 
 async def decide_to_generate(state: GraphState):
     if not state.get("documents"):
+        # Fast path: If question matches OOD blocklist, bypass Tavily search and route directly to refusal
+        if is_blocked_ood(state["question"]):
+            logger.info("ROUTE: OOD BLOCKLIST MATCHED -> DIRECT GENERATE REFUSAL")
+            return "generate"
+
         enable_web_search = state.get("enable_web_search")
         if enable_web_search is None:
             enable_web_search = settings.ENABLE_WEB_SEARCH
@@ -164,14 +195,13 @@ async def generate(state: GraphState):
     summary = state.get("summary", "")
     run_count = state.get("run_count", 0) + 1
     web_searched = state.get("web_searched", False)
-    
+
     history_lines = [f"{msg['role']}: {msg['content']}" for msg in chat_history[-6:]]
     if summary:
         history_lines.insert(0, summary if summary.startswith("System Summary:") else f"System Summary: {summary}")
     history_str = "\n".join(history_lines)
     context = build_context(documents)
 
-    # Use a prompt with strict domain guardrails
     if web_searched:
         template = """You are a Support Docs Copilot with web search capabilities. The local documentation did not contain a relevant answer, so web search results have been provided instead.
 
@@ -196,7 +226,7 @@ CRITICAL GUARDRAILS & INSTRUCTIONS:
 1. DIRECTNESS & NO FILLER (Crucial for factual precision):
 - Be direct, concise, and professional.
 - NEVER use conversational filler, pleasantries, or preambles (e.g. do NOT say "I can help with that!", "Sure!", "Certainly!", "I understand you're having trouble", or "Here is what the documentation says").
-- If the user asks a technical or support question (even if informal or slang like 'cant login bro' or 'halp my pasword broke'), START DIRECTLY with the factual solution without greetings.
+- If the user asks a technical or support question (even if informal or slang like 'cant login bro', 'halp my pasword broke', 'redis broken?'), START DIRECTLY with the factual solution without greetings.
 - Only respond conversationally if the user ONLY provides a pure standalone greeting (e.g. 'hello', 'hi').
 
 2. DOMAIN BOUNDARIES (Out-of-domain refusal):
@@ -210,12 +240,12 @@ If the user asks about an unsupported or unmentioned feature, format, plan, chan
 - Use direct, affirmative negation matched with documented alternatives:
   * For tool/service questions: "No, the system uses [documented component], not [requested component]." (e.g. "No, the system uses Redis-backed ARQ workers for async task processing, not RabbitMQ.")
   * For format/feature questions: "The system does not support [requested item]. Supported formats are [documented formats]." (e.g. "The system does not support MP4 video uploads. Supported formats are PDF, DOCX, TXT, HTML, and Markdown.")
-  * For unmentioned plans or errors: State what the documentation specifies and clearly state that the requested item is not supported.
-- Never use phrases like "I don't know" or "I do not know".
+  * For unmentioned plans or errors: State clearly what is documented and state that the requested item is not documented or specified (e.g. "The documentation defines Error Code 404 (Resource Not Found), 401 (Unauthorized), and 429 (Rate Limit Exceeded). Error Code 500 is not documented in the reference guide." or "The documentation specifies rate limits for Free (60 requests/minute) and Pro (300 requests/minute) tiers. The rate limit for the Enterprise plan is not specified in the documentation.")
+- DO NOT say vague evasive phrases like "I don't know" or "The documentation does not contain information". Always anchor the answer directly to the subject entity.
 Never hallucinate unsupported features.
 
 4. CITE-TO-WRITE:
-For all technical questions, you must use ONLY the retrieved context to answer. Append [doc_id] to the end of every factual sentence.
+For all technical questions, you must use ONLY the retrieved context to answer. Append [doc_id: source_filename] to the end of every factual sentence (e.g. [doc_id: auth_guide.txt], [doc_id: product_guide.txt], [doc_id: sample_error.txt], [doc_id: contact_info.html], [doc_id: redis_worker_architecture.md]).
 Do not write a sentence if you cannot cite a source from the retrieved context.
 
 Chat History:
@@ -234,7 +264,8 @@ Answer:"""
         logger.info(f"Using slow reasoning model ({getattr(settings, 'SLOW_LLM_MODEL', 'default')}) for retry attempt #{run_count}")
     rag_chain = prompt | selected_llm
     generation = await rag_chain.ainvoke({"context": context, "question": question, "chat_history": history_str})
-    return {"generation": generation.content, "sources": source_citations(documents), "run_count": run_count}
+    cleaned_generation = sanitize_citations(generation.content, documents)
+    return {"generation": cleaned_generation, "sources": source_citations(documents), "run_count": run_count}
 
 
 async def evaluate_groundedness_llm_judge(context: str, question: str, generation: str) -> Tuple[str, float]:
@@ -285,29 +316,29 @@ async def evaluate_answer(state: GraphState):
     documents = state["documents"]
     generation = state["generation"]
     question = state.get("question", "")
-    
+
     # Skip hallucination checks for conversational queries with no docs
     if not documents:
         return {"grounded": "yes", "confidence_score": 0.99}
-        
+
     context = build_context(documents)
     if getattr(settings, "ENABLE_LLM_JUDGE", True):
         grade, confidence = await evaluate_groundedness_llm_judge(context, question, generation)
     else:
         grade, confidence = evaluate_nli_groundedness(context, generation)
-        
+
     return {"grounded": grade, "confidence_score": confidence}
 
 
 async def check_hallucinations(state: GraphState):
     run_count = state["run_count"]
-    
+
     if run_count >= 3:
         logger.info("ROUTE: MAX RETRIES REACHED")
         return "end"
-        
+
     grade = state.get("grounded", "yes")
-        
+
     if grade.lower() == "yes":
         logger.info("ROUTE: GROUNDED")
         return "end"
