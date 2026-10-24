@@ -73,7 +73,7 @@ async def run_local_evaluation(
         docs = output_state.get("documents", [])
         
         # Strip [doc_id: ...] citation tags so RAGAS compares pure answer content against ground truth
-        clean_answer = re.sub(r"\s*\[doc_id[^\]]*\]", "", answer).strip()
+        clean_answer = re.sub(r"\s*\[[^\]]+\]", "", answer).strip()
         questions.append(row["question"])
         answers.append(clean_answer)
         contexts.append([doc.page_content for doc in docs])
