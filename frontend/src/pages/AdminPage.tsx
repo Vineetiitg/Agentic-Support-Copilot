@@ -182,13 +182,21 @@ function EvaluationTab({ toast }: { toast: any }) {
   const evalMutation = useMutation({
     mutationFn: (dataset?: string) => runEvaluation(dataset),
     onSuccess: (data) => {
-      toast('Evaluation started', 'success')
+      toast('Evaluation started in background', 'success')
       if (data.job_id) {
         setJobId(data.job_id)
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['eval'] })
       }
     },
-    onError: () => toast('Evaluation failed', 'error'),
+    onError: (err: any) => {
+      const msg = err.response?.data?.detail || err.message || 'Evaluation failed'
+      toast(`Evaluation failed: ${msg}`, 'error')
+    },
   })
+
+  const isFinished = (s?: string) => s === 'completed' || s === 'complete'
+  const isErr = (s?: string) => s === 'failed' || s === 'error'
 
   const { data: taskData } = useQuery({
     queryKey: ['task', jobId],
@@ -196,23 +204,23 @@ function EvaluationTab({ toast }: { toast: any }) {
     enabled: !!jobId,
     refetchInterval: (query) => {
       const status = query.state.data?.status
-      if (status === 'completed' || status === 'failed') return false
-      return 2000
+      if (isFinished(status) || isErr(status)) return false
+      return 2500
     },
   })
 
   useEffect(() => {
-    if (taskData?.status === 'completed') {
-      toast('Evaluation completed', 'success')
+    if (isFinished(taskData?.status)) {
+      toast('Evaluation completed successfully', 'success')
       queryClient.invalidateQueries({ queryKey: ['eval'] })
       setJobId(null)
-    } else if (taskData?.status === 'failed') {
-      toast('Evaluation failed: ' + (taskData.error || 'Unknown error'), 'error')
+    } else if (isErr(taskData?.status)) {
+      toast('Evaluation failed: ' + (taskData?.error || 'Unknown error'), 'error')
       setJobId(null)
     }
   }, [taskData?.status, taskData?.error, toast, queryClient])
 
-  const isPolling = !!jobId && taskData?.status !== 'completed' && taskData?.status !== 'failed'
+  const isPolling = !!jobId && !isFinished(taskData?.status) && !isErr(taskData?.status)
 
   return (
     <Card>
@@ -220,6 +228,15 @@ function EvaluationTab({ toast }: { toast: any }) {
         <div className="flex items-center justify-between">
           <CardTitle>RAGAS Evaluation</CardTitle>
           <div className="flex items-center gap-2">
+            <Button
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['eval'] })}
+              variant="ghost"
+              size="sm"
+              title="Refresh latest report"
+            >
+              <RefreshCw size={14} className="mr-1" />
+              Refresh
+            </Button>
             <Button
               onClick={() => evalMutation.mutate('datasets/golden_qa_sample5.csv')}
               disabled={evalMutation.isPending || isPolling}

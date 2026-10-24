@@ -16,13 +16,17 @@ async def async_ingest_documents(ctx: dict[str, Any], data_dir: str = "data/docs
 
 async def async_run_ragas_eval(ctx: dict[str, Any], dataset_path: str = None) -> dict[str, Any]:
     logger.info(f"[Arq Worker] Starting RAGAS benchmark evaluation (dataset={dataset_path or 'all 55 questions'})...")
-    # Import inside task to avoid circular imports or heavy startup load
     from pathlib import Path
-    from app.tests.eval_rag import run_local_evaluation
+    from app.tests.eval_rag import run_local_evaluation, REPORT_PATH
     kwargs = {"dataset_path": Path(dataset_path)} if dataset_path else {}
-    result_path = await run_local_evaluation(**kwargs)
-    logger.info(f"[Arq Worker] RAGAS evaluation completed. Report saved at: {result_path}")
-    return {"status": "SUCCESS", "report_path": str(result_path)}
+    summary = await run_local_evaluation(**kwargs)
+    logger.info(f"[Arq Worker] RAGAS evaluation completed. Report saved at: {REPORT_PATH}")
+    return {
+        "status": "SUCCESS",
+        "questions": summary.get("questions", 0),
+        "source_hit_rate": summary.get("source_hit_rate", 0.0),
+        "report_path": str(REPORT_PATH),
+    }
 
 
 async def async_llm_throttle_call(ctx: dict[str, Any], prompt: str) -> dict[str, Any]:
@@ -40,4 +44,4 @@ class WorkerSettings:
     functions = [async_ingest_documents, async_run_ragas_eval, async_llm_throttle_call]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)
     max_jobs = 5  # Role D: Concurrency limit per worker container to smooth traffic spikes
-    job_timeout = 600  # 10 minutes max for heavy ingestion or evaluation jobs
+    job_timeout = 1800  # 30 minutes max for heavy evaluation or ingestion jobs
