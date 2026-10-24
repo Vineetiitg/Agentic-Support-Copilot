@@ -62,17 +62,24 @@ async def get_eval_endpoint(user: UserContext = Depends(resolve_user)):
     return {"status": "missing", "report": "No evaluation report found yet. Click 'Run Evaluation Now' below to generate one."}
 
 @router.post("/admin/eval")
-async def post_eval_endpoint(user: UserContext = Depends(resolve_user)):
+async def post_eval_endpoint(
+    payload: dict = None,
+    user: UserContext = Depends(resolve_user)
+):
     require_admin(user)
+    dataset_file = payload.get("dataset") if payload and isinstance(payload, dict) else None
     try:
         from app.core.queue import get_arq_pool
         pool = await get_arq_pool()
-        job = await pool.enqueue_job("async_run_ragas_eval")
+        kwargs = {"dataset_path": dataset_file} if dataset_file else {}
+        job = await pool.enqueue_job("async_run_ragas_eval", **kwargs)
         return {"status": "ok", "message": "RAGAS evaluation task queued.", "job_id": job.job_id}
     except Exception as e:
         logger.warning(f"Arq enqueue failed ({e}), falling back to synchronous evaluation.")
         from app.tests.eval_rag import run_local_evaluation
-        summary = await run_local_evaluation()
+        from pathlib import Path
+        kwargs = {"dataset_path": Path(dataset_file)} if dataset_file else {}
+        summary = await run_local_evaluation(**kwargs)
         report_content = REPORT_PATH.read_text(encoding="utf-8") if REPORT_PATH.exists() else "Report generated."
         return {"status": "ok", "summary": summary, "report": report_content}
 

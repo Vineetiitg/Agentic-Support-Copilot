@@ -180,7 +180,7 @@ function EvaluationTab({ toast }: { toast: any }) {
   })
 
   const evalMutation = useMutation({
-    mutationFn: runEvaluation,
+    mutationFn: (dataset?: string) => runEvaluation(dataset),
     onSuccess: (data) => {
       toast('Evaluation started', 'success')
       if (data.job_id) {
@@ -219,14 +219,25 @@ function EvaluationTab({ toast }: { toast: any }) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>RAGAS Evaluation</CardTitle>
-          <Button
-            onClick={() => evalMutation.mutate()}
-            disabled={evalMutation.isPending || isPolling}
-            size="sm"
-          >
-            {(evalMutation.isPending || isPolling) ? <Loader2 size={14} className="mr-1 animate-spin" /> : <Play size={14} className="mr-1" />}
-            {isPolling ? 'Running...' : 'Run Evaluation'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => evalMutation.mutate('datasets/golden_qa_sample5.csv')}
+              disabled={evalMutation.isPending || isPolling}
+              variant="outline"
+              size="sm"
+            >
+              <Play size={14} className="mr-1" />
+              Quick Sample (5 Qs)
+            </Button>
+            <Button
+              onClick={() => evalMutation.mutate(undefined)}
+              disabled={evalMutation.isPending || isPolling}
+              size="sm"
+            >
+              {(evalMutation.isPending || isPolling) ? <Loader2 size={14} className="mr-1 animate-spin" /> : <Play size={14} className="mr-1" />}
+              {isPolling ? 'Running...' : 'Run Full (55 Qs)'}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>

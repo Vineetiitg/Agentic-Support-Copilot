@@ -14,11 +14,13 @@ async def async_ingest_documents(ctx: dict[str, Any], data_dir: str = "data/docs
     return {"status": "SUCCESS", "message": "Documents ingested successfully.", "data_dir": data_dir}
 
 
-async def async_run_ragas_eval(ctx: dict[str, Any]) -> dict[str, Any]:
-    logger.info("[Arq Worker] Starting RAGAS benchmark evaluation...")
+async def async_run_ragas_eval(ctx: dict[str, Any], dataset_path: str = None) -> dict[str, Any]:
+    logger.info(f"[Arq Worker] Starting RAGAS benchmark evaluation (dataset={dataset_path or 'all 55 questions'})...")
     # Import inside task to avoid circular imports or heavy startup load
+    from pathlib import Path
     from app.tests.eval_rag import run_local_evaluation
-    result_path = await run_local_evaluation()
+    kwargs = {"dataset_path": Path(dataset_path)} if dataset_path else {}
+    result_path = await run_local_evaluation(**kwargs)
     logger.info(f"[Arq Worker] RAGAS evaluation completed. Report saved at: {result_path}")
     return {"status": "SUCCESS", "report_path": str(result_path)}
 

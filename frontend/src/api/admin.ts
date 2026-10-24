@@ -34,8 +34,8 @@ export async function getEvalReport() {
   return res.data
 }
 
-export async function runEvaluation() {
-  const res = await apiClient.post('/admin/eval')
+export async function runEvaluation(dataset?: string) {
+  const res = await apiClient.post('/admin/eval', dataset ? { dataset } : {})
   return res.data
 }
 
