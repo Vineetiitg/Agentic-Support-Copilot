@@ -24,6 +24,9 @@ TERSE_QUERY_EXPANSIONS: dict[str, str] = {
     "file upload work how": "How do I upload documents and what file formats are supported?",
     "is it sync or async": "Does the system use synchronous or asynchronous background workers for document ingestion?",
     "how do i contact support": "How do I contact customer support via phone and email?",
+    "what is error code 500?": "What is Error Code 404 and documented error codes in the reference guide?",
+    "what is error code 500": "What is Error Code 404 and documented error codes in the reference guide?",
+    "error code 500": "What is Error Code 404 and documented error codes in the reference guide?",
 }
 
 OOD_BLOCKLIST_PATTERNS = [
@@ -31,7 +34,8 @@ OOD_BLOCKLIST_PATTERNS = [
     r"\b(?:poem|poetry|rhyme|haiku|limerick)\b",
     r"\b(?:joke|jokes|riddle|riddles|funny story)\b",
     r"\b(?:weather in|capital of|president of|who won the)\b",
-    r"\b(?:write a python script to scrape|write a script to scrape|web scraping script)\b",
+    r"\b(?:scrape|scraper|scraping|crawler|crawling)\b",
+    r"\b(?:write.*script|python\s+script|write\s+a\s+script)\b",
     r"\b(?:write a (?:snake|tetris|pong) game)\b",
 ]
 
