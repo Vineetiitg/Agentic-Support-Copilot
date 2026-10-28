@@ -19,6 +19,16 @@ Prepare to be blown away! 🌪️ **Support Docs Copilot** is a state-of-the-art
 ## 🎬 Demo & Previews
 
 <div align="center">
+  <img src="./docs/images/demo.gif" alt="Support Copilot Live Demo" width="90%">
+  <p><em>✨ Live Action: Real-time token streaming, speculative model routing, and automatic document citations in action.</em></p>
+</div>
+
+<br/>
+
+<details open>
+<summary><b>📸 Detailed Interface Screenshots (Click to collapse / expand)</b></summary>
+<br/>
+<div align="center">
   <h3>💬 Core Chat Experience & Confidence Scoring</h3>
   <img src="./docs/images/chat_interface.png" alt="Support Docs Copilot Core Experience" width="85%">
   <p><em>Real-time streaming technical support with confidence scoring and multi-turn dialogue memory.</em></p>
@@ -33,6 +43,7 @@ Prepare to be blown away! 🌪️ **Support Docs Copilot** is a state-of-the-art
   <img src="./docs/images/login_page.png" alt="Role-Based Authentication Login Page" width="85%">
   <p><em>Modern dark-mode UI with role-based JWT authentication for standard users and administrative supervisors.</em></p>
 </div>
+</details>
 
 ## 🌟 Key Features
 
