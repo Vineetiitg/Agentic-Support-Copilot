@@ -19,24 +19,20 @@ Prepare to be blown away! 🌪️ **Support Docs Copilot** is a state-of-the-art
 ## 🎬 Demo & Previews
 
 <div align="center">
-  <img src="./image.png" alt="Support Docs Copilot Core Experience" width="80%">
-  <p><em>✨ The Core Chat Experience: Lightning-fast real-time streaming with precise source citations! ✨</em></p>
-</div>
+  <h3>💬 Core Chat Experience & Confidence Scoring</h3>
+  <img src="./docs/images/chat_interface.png" alt="Support Docs Copilot Core Experience" width="85%">
+  <p><em>Real-time streaming technical support with confidence scoring and multi-turn dialogue memory.</em></p>
+  <br/>
 
-<details>
-<summary><b>👀 View More Screenshots</b></summary>
-<br/>
-<div align="center">
-  <img src="https://via.placeholder.com/800x450.png?text=Admin+Dashboard+(Live+Sessions)" alt="Admin Dashboard" width="80%">
-  <p><em>👑 Admin Dashboard: Live Session Observability & Deep Insights.</em></p>
-  
-  <img src="https://via.placeholder.com/800x450.png?text=RAGAS+Evaluation+Tab" alt="RAGAS Evaluation" width="80%">
-  <p><em>📊 RAGAS Evaluation Tab: Rigorous LLM Benchmarking for Peak Performance.</em></p>
-  
-  <img src="https://via.placeholder.com/800x450.png?text=Dark+Mode+React+UI" alt="Dark Mode UI" width="80%">
-  <p><em>🌙 Dark Mode UI: A stunning, clean, and modern React frontend.</em></p>
+  <h3>🛡️ Grounded Document Retrieval & Guardrail Interception</h3>
+  <img src="./docs/images/guardrail_and_retrieval.png" alt="Document Grounding and Guardrail Interception" width="85%">
+  <p><em>Verified document citations with instant out-of-domain refusal (intercepts non-technical questions without hallucinating).</em></p>
+  <br/>
+
+  <h3>🔐 Secure Authentication & Role-Based Access Control</h3>
+  <img src="./docs/images/login_page.png" alt="Role-Based Authentication Login Page" width="85%">
+  <p><em>Modern dark-mode UI with role-based JWT authentication for standard users and administrative supervisors.</em></p>
 </div>
-</details>
 
 ## 🌟 Key Features
 
