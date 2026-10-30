@@ -33,6 +33,42 @@ class GraphState(TypedDict):
     query_variants: Optional[List[str]]
 
 
+PII_SECRET_PATTERNS = [
+    (re.compile(r"\b(?:sk-[a-zA-Z0-9_-]{20,}|AKIA[0-9A-Z]{16})\b"), "[REDACTED_API_KEY]"),
+    (re.compile(r"\bBearer\s+[A-Za-z0-9_\-\.]{25,}\b", re.IGNORECASE), "Bearer [REDACTED_TOKEN]"),
+    (re.compile(r"(password\s*[:=]\s*['\"])[^'\"]+(['\"])", re.IGNORECASE), r"\1[REDACTED_PASSWORD]\2"),
+]
+
+
+def redact_sensitive_data(text: str) -> str:
+    """Masks credentials, API keys, or leaked secrets before returning to user."""
+    redacted = text
+    for pattern, replacement in PII_SECRET_PATTERNS:
+        redacted = pattern.sub(replacement, redacted)
+    return redacted
+
+
+REFUSAL_SIGNATURES = [
+    "i am a support copilot designed to answer questions about our product documentation",
+    "i cannot assist with that request",
+    "i can only answer questions related to our product",
+    "i am unable to provide recipes",
+    "i do not provide translation",
+    "not to write poetry",
+    "i don't have access to real-time weather",
+    "i cannot fulfill this request",
+    "i do not have information in the documentation regarding",
+    "the documentation does not contain information regarding",
+    "i do not have access to information regarding",
+]
+
+
+def is_refusal_generation(generation: str) -> bool:
+    """Detects whether the LLM generated an out-of-domain refusal or explicit missing-info statement."""
+    gen_lower = generation.lower()
+    return any(sig in gen_lower for sig in REFUSAL_SIGNATURES)
+
+
 def sanitize_citations(answer: str, documents: list[Document]) -> str:
     """
     Sanitizes citations in the answer.
@@ -98,8 +134,8 @@ async def grade_documents(state: GraphState):
 
     if not filtered_docs and reranked_docs:
         top_score = reranked_docs[0].metadata.get("relevance_score", reranked_docs[0].metadata.get("rerank_score", 0.0))
-        if top_score >= 0.001:
-            logger.info(f"Fallback grader: preserving top candidate document with score {top_score:.4f} >= 0.001")
+        if top_score >= 0.02:
+            logger.info(f"Fallback grader: preserving top candidate document with score {top_score:.4f} >= 0.02")
             filtered_docs = [reranked_docs[0]]
 
     # Cap single-intent queries at 2 documents to prevent over-retrieval dragging context_precision
@@ -248,6 +284,11 @@ Never hallucinate unsupported features.
 For all technical questions, you must use ONLY the retrieved context to answer. Append [doc_id: source_filename] to the end of every factual sentence (e.g. [doc_id: auth_guide.txt], [doc_id: product_guide.txt], [doc_id: sample_error.txt], [doc_id: contact_info.html], [doc_id: redis_worker_architecture.md]).
 Do not write a sentence if you cannot cite a source from the retrieved context.
 
+5. MISSING DOCUMENTATION & EMPTY CONTEXT:
+If the retrieved context is empty, or does not contain information about the user's specific inquiry, explicitly state:
+"I do not have information in the documentation regarding [user's inquiry]."
+Never hallucinate or fabricate features, formats, or services that are not in the context.
+
 Chat History:
 {chat_history}
 
@@ -264,8 +305,32 @@ Answer:"""
         logger.info(f"Using slow reasoning model ({getattr(settings, 'SLOW_LLM_MODEL', 'default')}) for retry attempt #{run_count}")
     rag_chain = prompt | selected_llm
     generation = await rag_chain.ainvoke({"context": context, "question": question, "chat_history": history_str})
-    cleaned_generation = sanitize_citations(generation.content, documents)
-    return {"generation": cleaned_generation, "sources": source_citations(documents), "run_count": run_count}
+    raw_answer = generation.content
+
+    # ==========================================
+    # TIER 3: OUTPUT GUARDRAILS
+    # ==========================================
+    # A. Refusal & Missing Documentation Gate:
+    # If the response is a refusal, missing info statement, or if no documents were used,
+    # strictly zero out sources and strip any citation tags to prevent false citations.
+    if is_refusal_generation(raw_answer) or not documents:
+        logger.info("OUTPUT GUARDRAIL: Refusal, missing info, or zero-docs detected -> Zeroing sources.")
+        clean_refusal = re.sub(r"\s*\[doc_id[^\]]*\]", "", raw_answer).strip()
+        safe_refusal = redact_sensitive_data(clean_refusal)
+        return {
+            "generation": safe_refusal,
+            "sources": [],
+            "documents": [],
+            "run_count": run_count,
+        }
+
+    # B. Citation Sanitization: Ensure citations match valid retrieved document sources
+    cleaned_generation = sanitize_citations(raw_answer, documents)
+
+    # C. PII / Secret Masking: Redact API keys, tokens, and passwords
+    safe_generation = redact_sensitive_data(cleaned_generation)
+
+    return {"generation": safe_generation, "sources": source_citations(documents), "run_count": run_count}
 
 
 async def evaluate_groundedness_llm_judge(context: str, question: str, generation: str) -> Tuple[str, float]:
