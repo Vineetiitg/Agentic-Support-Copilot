@@ -27,7 +27,20 @@ if settings.LANGCHAIN_TRACING_V2 and settings.LANGCHAIN_API_KEY:
 app = FastAPI(title=settings.PROJECT_NAME)
 
 @app.on_event("startup")
-async def startup_faq_prewarming():
+async def startup_initialization():
+    # 1. Auto-ingest documentation on startup if registry is empty
+    try:
+        from app.engine.document_registry import load_registry
+        from app.engine.ingestion import ingest_documents
+        reg = load_registry()
+        if not reg:
+            logger.info("STARTUP: Document registry empty. Auto-ingesting documents from data/docs...")
+            ingest_documents("data/docs", force=True)
+            logger.info("STARTUP: Auto-ingestion complete.")
+        else:
+            logger.info(f"STARTUP: Document registry loaded with {len(reg)} documents.")
+    except Exception as e:
+        logger.warning(f"Startup document ingestion failed or skipped: {e}")
     try:
         csv_path = Path("datasets/golden_qa.csv")
         if csv_path.exists():

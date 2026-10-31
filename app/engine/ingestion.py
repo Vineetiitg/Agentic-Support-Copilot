@@ -69,7 +69,7 @@ def ingest_documents(data_dir: str = "data/docs", force: bool = False) -> None:
         upsert_record(
             doc_id=doc_id,
             source=path.name,
-            source_path=str(path),
+            source_path=path.as_posix(),
             content_hash=file_hash(path),
             chunk_count=chunk_counts[doc_id],
             registry=registry,

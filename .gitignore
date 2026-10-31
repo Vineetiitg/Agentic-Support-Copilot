@@ -21,7 +21,6 @@ reports/*.html
 reports/*.json
 reports/*.md
 !reports/eval_report.md
-data/document_registry.json
 
 # IDE and Agent metadata
 .gemini/

@@ -1,0 +1,58 @@
+{
+  "0e99a80a-bfd6-557d-914a-6a304441a380": {
+    "chunk_count": 2,
+    "content_hash": "5bf0b6934589615f4342087d1db4918c48fab950a92dddfc4e189dfaba652f3f",
+    "doc_id": "0e99a80a-bfd6-557d-914a-6a304441a380",
+    "ingested_at": "2026-10-31T10:43:32.754210+00:00",
+    "source": "rest_endpoints_guide.md",
+    "source_path": "data/docs/rest_endpoints_guide.md"
+  },
+  "231677b8-8ff8-5ba2-86ac-aea60873f9b4": {
+    "chunk_count": 1,
+    "content_hash": "2701ccd046b44681cb6c1ffa96b31418170b350e4d2001395699d5b49a416f30",
+    "doc_id": "231677b8-8ff8-5ba2-86ac-aea60873f9b4",
+    "ingested_at": "2026-10-31T10:43:32.751047+00:00",
+    "source": "auth_guide.txt",
+    "source_path": "data/docs/auth_guide.txt"
+  },
+  "4a3dec53-d73d-56b4-9bbc-d2d4f65c4b50": {
+    "chunk_count": 2,
+    "content_hash": "1f2bd083342efc7320f3d0c16928799fd6a84e24d596bc49f2962f9967659879",
+    "doc_id": "4a3dec53-d73d-56b4-9bbc-d2d4f65c4b50",
+    "ingested_at": "2026-10-31T10:43:32.751696+00:00",
+    "source": "contact_info.html",
+    "source_path": "data/docs/contact_info.html"
+  },
+  "7566b9e6-8a51-5b30-806c-0caed49d29da": {
+    "chunk_count": 2,
+    "content_hash": "57e217653623b47cd4aba48593f1016dda5b27044f3c405023ebd30e98d6b85c",
+    "doc_id": "7566b9e6-8a51-5b30-806c-0caed49d29da",
+    "ingested_at": "2026-10-31T10:43:32.752702+00:00",
+    "source": "redis_worker_architecture.md",
+    "source_path": "data/docs/redis_worker_architecture.md"
+  },
+  "8b14bccb-cce1-5ffd-83a4-728add230e59": {
+    "chunk_count": 1,
+    "content_hash": "cc9022a0d2d1542547f820ee69c8e67c8ae01d2bc6b6caff4d202a7fbebd0608",
+    "doc_id": "8b14bccb-cce1-5ffd-83a4-728add230e59",
+    "ingested_at": "2026-10-31T10:43:32.755221+00:00",
+    "source": "sample_error.txt",
+    "source_path": "data/docs/sample_error.txt"
+  },
+  "9cf79d7b-a692-5100-8512-f28ee9d7a460": {
+    "chunk_count": 3,
+    "content_hash": "33e461a729d6eeb11a978b08bebab19be6a40ff59998be9bfcb64f2e52339277",
+    "doc_id": "9cf79d7b-a692-5100-8512-f28ee9d7a460",
+    "ingested_at": "2026-10-31T10:43:32.752702+00:00",
+    "source": "product_guide.txt",
+    "source_path": "data/docs/product_guide.txt"
+  },
+  "af606496-52fb-561c-8a53-177b0ee30a87": {
+    "chunk_count": 4,
+    "content_hash": "fe0a246045802ebee08d98dc4c1933436f1cdb91dc77c659cee52e32b6cc7e82",
+    "doc_id": "af606496-52fb-561c-8a53-177b0ee30a87",
+    "ingested_at": "2026-10-31T10:43:32.750049+00:00",
+    "source": "api_docs.md",
+    "source_path": "data/docs/api_docs.md"
+  }
+}

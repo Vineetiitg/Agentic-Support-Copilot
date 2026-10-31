@@ -61,15 +61,22 @@ async def admin_reset_endpoint(user: UserContext = Depends(resolve_user)):
 @router.get("/admin/eval")
 async def get_eval_endpoint(user: UserContext = Depends(resolve_user)):
     report_file = None
-    if REPORT_PATH.exists():
-        report_file = REPORT_PATH
-    else:
-        # Search for any recent report in reports/
-        reports_dir = Path("reports")
-        if reports_dir.exists():
-            candidates = sorted(reports_dir.glob("eval_report*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
-            if candidates:
-                report_file = candidates[0]
+    for candidate in [
+        REPORT_PATH,
+        Path("reports/eval_report.md"),
+        Path("/app/reports/eval_report.md"),
+    ]:
+        if candidate.exists():
+            report_file = candidate
+            break
+
+    if not report_file:
+        for folder in [Path("reports"), Path("/app/reports")]:
+            if folder.exists():
+                candidates = sorted(folder.glob("eval_report*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+                if candidates:
+                    report_file = candidates[0]
+                    break
 
     if report_file and report_file.exists():
         return {"status": "ok", "report": report_file.read_text(encoding="utf-8")}
