@@ -1,19 +1,8 @@
----
-title: Support Docs Copilot
-emoji: 🚀
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-pinned: false
-license: mit
----
-
 # Agentic Support Copilot
 
 > **An Enterprise-Grade, Self-Correcting RAG System with Semantic Caching & Cross-Encoder Reranking**
 
-[![Live Demo on AWS](https://img.shields.io/badge/Live%20Demo-AWS%20EC2-orange?logo=amazon-aws)](https://support-copilot.duckdns.org)
-[![Live Demo on HuggingFace](https://img.shields.io/badge/🤗%20Live%20Demo-HuggingFace%20Spaces-blue)](https://huggingface.co/spaces/vineet88/support-docs-copilot)
+[![Live Demo on AWS EC2](https://img.shields.io/badge/Live%20Demo-AWS%20EC2-orange?logo=amazon-aws)](https://supportcopilot.me/)
 [![codecov](https://codecov.io/gh/Vineetiitg/Agentic-Support-Copilot/graph/badge.svg)](https://codecov.io/gh/Vineetiitg/Agentic-Support-Copilot)
 
 **Agentic Support Copilot** is a high-precision technical support assistant engineered to resolve product documentation queries with verified per-sentence source citations and zero hallucinations.
@@ -94,7 +83,10 @@ frontend/             # React frontend (Vite + Tailwind + Zustand) 🎨
 
 ## 🕸️ LangGraph Architecture
 
-![LangGraph Architecture](./langgraph_architecture.png)
+<div align="center">
+  <img src="./langgraph_architecture.png" alt="LangGraph Architecture Flow" width="280">
+  <p><em>LangGraph State Graph: Speculative retrieval, cross-encoder reranking, and self-correcting hallucination loops.</em></p>
+</div>
 
 ---
 
