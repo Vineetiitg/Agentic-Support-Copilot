@@ -49,8 +49,20 @@ class Settings(BaseSettings):
     CHUNK_SIZE: int = 750
     CHUNK_OVERLAP: int = 100
 
+    # Semantic Cache & Tier B Cross-Encoder Verifier
+    CACHE_SIMILARITY_THRESHOLD: float = 0.88
+    CACHE_CROSS_ENCODER_ENABLED: bool = True
+    CACHE_CROSS_ENCODER_MODEL: str = "BAAI/bge-reranker-base"
+    CACHE_CROSS_ENCODER_THRESHOLD: float = 0.75
+
     # Runtime Safety
+    # Guardrails Config
     ENABLE_GUARDRAILS: bool = True
+    LLAMA_GUARD_ENABLED: bool = False
+    LLAMA_GUARD_API_URL: str = "https://api.groq.com/openai/v1/chat/completions"
+    LLAMA_GUARD_MODEL: str = "llama-guard-3-8b"
+    LLAMA_GUARD_API_KEY: str = ""
+    ENABLE_PRESIDIO: bool = True
     ENABLE_RAG_EVAL: bool = False
     ENABLE_LLM_JUDGE: bool = True
     ENABLE_NLI_GROUNDEDNESS: bool = False
