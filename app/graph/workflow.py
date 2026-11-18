@@ -14,6 +14,7 @@ from app.engine.retriever import retrieve_documents
 from app.engine.reranker import rerank_documents, evaluate_nli_groundedness
 from app.engine.query_transform import is_blocked_ood
 from app.core.llm_factory import get_fast_llm, get_slow_llm
+from app.guardrails.output import redact_sensitive_data
 
 
 class GraphState(TypedDict):
@@ -31,21 +32,6 @@ class GraphState(TypedDict):
     web_searched: Optional[bool]
     enable_web_search: Optional[bool]
     query_variants: Optional[List[str]]
-
-
-PII_SECRET_PATTERNS = [
-    (re.compile(r"\b(?:sk-[a-zA-Z0-9_-]{20,}|AKIA[0-9A-Z]{16})\b"), "[REDACTED_API_KEY]"),
-    (re.compile(r"\bBearer\s+[A-Za-z0-9_\-\.]{25,}\b", re.IGNORECASE), "Bearer [REDACTED_TOKEN]"),
-    (re.compile(r"(password\s*[:=]\s*['\"])[^'\"]+(['\"])", re.IGNORECASE), r"\1[REDACTED_PASSWORD]\2"),
-]
-
-
-def redact_sensitive_data(text: str) -> str:
-    """Masks credentials, API keys, or leaked secrets before returning to user."""
-    redacted = text
-    for pattern, replacement in PII_SECRET_PATTERNS:
-        redacted = pattern.sub(replacement, redacted)
-    return redacted
 
 
 REFUSAL_SIGNATURES = [
@@ -391,6 +377,20 @@ async def evaluate_answer(state: GraphState):
         grade, confidence = await evaluate_groundedness_llm_judge(context, question, generation)
     else:
         grade, confidence = evaluate_nli_groundedness(context, generation)
+
+    run_count = state.get("run_count", 0)
+    # If hallucination is detected and max retries (3) reached, redact immediately & zero citations
+    if grade.lower() == "no" and run_count >= 3:
+        logger.warning("HALLUCINATION DETECTED: Max retries (3) reached. Redacting response to safe refusal.")
+        return {
+            "grounded": "no",
+            "confidence_score": 0.0,
+            "generation": (
+                "I do not have verified information in the documentation to answer this question accurately. "
+                "Please reach out to our technical support team for assistance."
+            ),
+            "sources": [],
+        }
 
     return {"grounded": grade, "confidence_score": confidence}
 

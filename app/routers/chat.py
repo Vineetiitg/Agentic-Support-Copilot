@@ -11,7 +11,7 @@ from app.core.queue import get_redis_client
 from app.engine.memory import add_session_message
 from app.engine.semantic_cache import set_cached_answer
 from app.graph.workflow import compile_workflow
-from app.guardrails.input import async_enforce_rate_limit, validate_query
+from app.guardrails.input import async_enforce_rate_limit, validate_query, check_llama_guard
 from app.guardrails.output import redact_sensitive_data
 from app.guardrails.validators import DetectPromptInjection
 from app.models.schemas import ChatRequest, ChatResponse, FeedbackRequest
@@ -31,7 +31,12 @@ async def chat_endpoint(request: ChatRequest, http_request: Request, user: UserC
     if settings.ENABLE_GUARDRAILS:
         try:
             input_guard.validate(request.query)
+            is_safe, reason = await check_llama_guard(request.query)
+            if not is_safe:
+                raise CopilotError("Query flagged as unsafe by AI safety guardrail.", status_code=400)
         except Exception as e:
+            if isinstance(e, CopilotError):
+                raise
             raise CopilotError(str(getattr(e, "message", e)), status_code=400)
 
     session_id, chat_history, summary, standalone_query, speculative_docs = await prepare_chat_context(
@@ -56,9 +61,19 @@ async def chat_endpoint(request: ChatRequest, http_request: Request, user: UserC
     try:
         with timed_stage(metrics, "rag_workflow"):
             final_state = await rag_agent.ainvoke(initial_state)
-        answer = redact_sensitive_data(final_state.get("generation", "Unable to compile answer."))
-        sources = final_state.get("sources", [])
-        confidence = final_state.get("confidence_score", 0.0)
+
+        # Check if hallucination occurred (grounded == "no")
+        if str(final_state.get("grounded", "yes")).lower() == "no":
+            answer = (
+                "I do not have verified information in the documentation to answer this question accurately. "
+                "Please reach out to our technical support team for assistance."
+            )
+            sources = []
+            confidence = 0.0
+        else:
+            answer = redact_sensitive_data(final_state.get("generation", "Unable to compile answer."))
+            sources = final_state.get("sources", [])
+            confidence = final_state.get("confidence_score", 0.0)
         
         if answer:
             await save_exchange(user.user_id, session_id, request.query, answer, sources, confidence)
@@ -80,7 +95,12 @@ async def chat_stream_endpoint(request: ChatRequest, http_request: Request, user
     if settings.ENABLE_GUARDRAILS:
         try:
             input_guard.validate(request.query)
+            is_safe, reason = await check_llama_guard(request.query)
+            if not is_safe:
+                raise CopilotError("Query flagged as unsafe by AI safety guardrail.", status_code=400)
         except Exception as e:
+            if isinstance(e, CopilotError):
+                raise
             raise CopilotError(str(getattr(e, "message", e)), status_code=400)
 
     session_id, chat_history, summary, standalone_query, speculative_docs = await prepare_chat_context(
@@ -159,9 +179,13 @@ async def chat_stream_endpoint(request: ChatRequest, http_request: Request, user
                 return
 
             if str(grounded_result).lower() == "no":
-                fallback_msg = "\n\n🚨 **[CANCELLED: This response violated safety guidelines and has been retracted.]**"
+                fallback_msg = (
+                    "\n\n🚨 **[CANCELLED: This response was ungrounded/hallucinated and has been retracted.]**\n"
+                    "I do not have verified information in the documentation to answer this question accurately. "
+                    "Please reach out to our technical support team for assistance."
+                )
                 yield fallback_msg
-                asyncio.create_task(save_exchange(user.user_id, session_id, request.query, fallback_msg, documents, 0.0))
+                asyncio.create_task(save_exchange(user.user_id, session_id, request.query, fallback_msg, [], 0.0))
                 return
 
             if has_streamed_tokens and str(grounded_result).lower() != "no":
