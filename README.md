@@ -41,12 +41,12 @@ Built with **LangGraph reflection loops**, **Qdrant hybrid retrieval**, **Cohere
 ## 🌟 Key Features
 
 - 🧠 **Speculative Retrieval:** Dynamically routes requests across specialized cutting-edge models!
-- ⚡ **Semantic Caching:** Sub-second cached responses dropping turnaround time to a blistering ~15ms!
+- ⚡ **Semantic Caching:** Sub-second cached responses dropping turnaround time to a blistering ~15ms with Negative Intent Guards!
 - 🛡️ **JWT Authentication:** Secure, rock-solid role-based access for admins and users.
-- 🦸 **Hallucination Fallback:** Self-RAG agent flawlessly detects and retries hallucinated answers!
-- 🎯 **Hybrid Reranking:** Dense + Sparse embeddings supercharged by Cohere/FlashRank.
+- 🦸 **Hallucination Redaction & Self-Correction:** Self-RAG agent detects hallucinations, retries up to 3x in background, and immediately redacts ungrounded answers!
+- 🎯 **Hybrid Reranking:** Dense + Sparse embeddings supercharged by Cohere/FlashRank with 0.02 noise cutoff.
 - 🚀 **Async Background Workers:** Heavy ingestion tasks effortlessly offloaded to Redis Arq.
-- 🛑 **Guardrails:** Real-time PII redaction and bulletproof prompt injection protection!
+- 🛑 **3-Tier Guardrails:** Llama Guard 3, Cross-Encoder noise filtering, and Microsoft Presidio PII scrubbing with refusal citation zeroing!
 
 ---
 
@@ -94,8 +94,9 @@ frontend/             # React frontend (Vite + Tailwind + Zustand) 🎨
 
 1. ⚡ **Speculative Retrieval with Similarity-Based Routing:**
    - Routes requests dynamically across specialized models: fast path (`google/gemini-2.0-flash-lite-preview-02-05`), default reasoning (`deepseek/deepseek-v4-flash`), and complex problem solving (`deepseek/deepseek-r1`) via OpenRouter / AICredits.
-2. 🧠 **Redis Pre-Warmed Vector Cache & Session Memory:**
+2. 🧠 **Redis Pre-Warmed Vector Cache with Negative Intent Guard:**
    - Features semantic caching that returns instant answers for common FAQs (**Sub-second cached responses via semantic similarity matching**, dropping turnaround from ~1,850ms to ~15–60ms 🚀).
+   - **Negative Intent Guard:** Eliminates "semantic cache bleed" by checking entity/intent tokens (e.g. `mp4`, `oauth2`, `500`), preventing false-positive cache hits on unsupported formats or negative constraints.
    - Manages multi-turn conversation memory with coreference resolution for flawless dialogue flow.
 3. 🎯 **Cohere & FlashRank Hybrid Reranking:**
    - Combines dense (`BAAI/bge-small-en-v1.5`) and sparse (`Qdrant/bm25`) embeddings with automatic reranking via **Cohere ClientV2** or local CPU-only **FlashRank**.
@@ -106,8 +107,12 @@ frontend/             # React frontend (Vite + Tailwind + Zustand) 🎨
    - Heavy tasks such as document ingestion, chunking, and vector indexing are offloaded to Redis-backed **Arq workers**, keeping the API non-blocking and highly responsive!
 6. 💯 **Answer Confidence Scoring:**
    - The Self-RAG pipeline calculates numerical confidence scores for every generated response, automatically triggering fallback generation or flagging low-confidence answers for human review.
-7. 🛡️ **3-Tier Production Guardrails:**
-   - Combines Tier 1 pre-retrieval heuristics, Tier 2 hybrid reranker relevance grading, and Tier 3 deterministic output guardrails with PII redaction and citation zeroing on refusals, achieving 100% out-of-domain interception.
+7. 🛡️ **3-Tier Production Guardrails & Hallucination Redaction:**
+   - **Tier 1 (Pre-Retrieval Heuristics & AI Safety):** Combines sub-millisecond regex checks (`<2ms`) for prompt injections and out-of-domain queries with **Llama Guard 3** safety classification.
+   - **Tier 2 (Cross-Encoder Noise Gate):** Reranks candidate chunks with Cohere v2 / FlashRank and enforces a strict `0.02` relevance cutoff to drop noise before context building.
+   - **Tier 3 (Post-Generation Output Guardrail & PII Scrubbing):** Integrates **Microsoft Presidio** NLP anonymization alongside deterministic credential/secret scrubbing (`sk-...`, Bearer tokens, passwords).
+   - **Refusal Citation Zeroing:** Automatically sets `sources = []` and strips citation tags on refusal generations to eliminate fake citations in the UI.
+   - **Self-Correcting Hallucination Loop:** Evaluates groundedness via LLM-as-a-judge / NLI; retries up to 3 times in the background if ungrounded, and immediately redacts the response to a safe refusal message if max retries are reached.
 
 ---
 
@@ -202,6 +207,9 @@ You can run this project in two ways: **Option A (Docker Compose - Easiest)** or
    
    # Observability & Safety
    ENABLE_GUARDRAILS=true
+   LLAMA_GUARD_ENABLED=false
+   LLAMA_GUARD_MODEL=llama-guard-3-8b
+   ENABLE_PRESIDIO=true
    ENABLE_RAG_EVAL=false
    LANGCHAIN_TRACING_V2=true
    LANGCHAIN_PROJECT="Support Docs Copilot"
@@ -302,6 +310,8 @@ make down        # Tear down cluster and free ports
 ## 🔐 Authentication & Guardrails
 
 - **JWT Authentication:** Protected endpoints require OAuth2 Bearer Tokens. Authenticate via `/auth/login` (default test accounts: `admin / admin123` and `user / user123`).
-- **Input Guardrails:** Automatically inspects incoming prompts for injection attacks and enforces rate limiting (30 req/min).
-- **Output Guardrails:** Automatically scrubs and redacts Personally Identifiable Information (SSNs, credit card numbers, phone numbers, emails) before delivering answers to the client.
+- **Tier 1 Input Guardrails:** Fast `<2ms` regex inspection for prompt injections/out-of-domain queries, coupled with Llama Guard 3 classification and client rate limiting (30 req/min).
+- **Tier 2 Retrieval Guardrails:** Cross-Encoder hard noise cutoff (`0.02`) discarding irrelevant context chunks before prompt construction.
+- **Tier 3 Output Guardrails:** Microsoft Presidio NLP anonymization + regex credential scrubbers (API keys, tokens, passwords, emails, phones, SSNs) and programmatic refusal citation zeroing (`sources = []`).
+- **Hallucination Redaction:** Background 3x retry loop with immediate output retraction if ungrounded claims persist.
 
